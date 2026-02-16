@@ -38,6 +38,20 @@ PU-Bench provides a standardized framework for evaluating PU learning algorithms
 
 ## Installation
 
+### Using uv (recommended)
+
+[uv](https://github.com/astral-sh/uv) is a fast Python package installer and resolver:
+
+```bash
+git clone https://github.com/XiXiphus/PU-Bench.git
+cd PU-Bench
+uv venv
+uv pip install -r requirements.txt
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
+
+### Using pip
+
 ```bash
 git clone https://github.com/XiXiphus/PU-Bench.git
 cd PU-Bench
