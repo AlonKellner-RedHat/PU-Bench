@@ -48,6 +48,7 @@ if str(PROJECT_ROOT) not in sys.path:
 TRAINER_IMPORT_PATHS = {
     "pn": "train.pn_trainer.PNTrainer",
     "nnpu": "train.nnpu_trainer.NNPUTrainer",
+    "nnpu_log": "train.nnpu_log_trainer.NNPULogTrainer",
     "nnpusb": "train.nnpusb_trainer.NNPUSBTrainer",
     "vpu": "train.vpu_trainer.VPUTrainer",
     "distpu": "train.distpu_trainer.DistPUTrainer",

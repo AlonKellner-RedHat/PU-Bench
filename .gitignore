@@ -77,3 +77,7 @@ FashionMNIST/
 aclImdb/
 *.tar.gz
 *.zip
+
+# Embeddings (Large precomputed files)
+scripts/embeddings/
+scripts/models/
