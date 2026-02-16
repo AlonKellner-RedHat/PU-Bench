@@ -65,6 +65,7 @@ TRAINER_IMPORT_PATHS = {
     "lbe": "train.lbe_trainer.LBETrainer",
     "cgenpu": "train.cgenpu_trainer.CGenPUTrainer",
     "pulcpbf": "train.pulcpbf_trainer.PULCPBFTrainer",
+    "pudra": "train.pudra_trainer.PUDRATrainer",
 }
 
 
