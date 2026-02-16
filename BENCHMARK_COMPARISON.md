@@ -52,19 +52,55 @@
 
 ---
 
+## Summary Table: Test AUC Scores
+
+| Dataset | nnPU | nnPU-Log | PUDRa | VPU | nnPUSB | LBE | Dist-PU | Winner |
+|---------|------|----------|-------|-----|--------|-----|---------|--------|
+| **MNIST** | 99.60% | 29.07% ❌ | **99.60%** | 99.52% | 99.46% | 99.30% | 99.63% | Dist-PU |
+| **Fashion-MNIST** | 99.47% | 19.27% ❌ | **99.73%** ✓ | 99.63% | 99.34% | 99.51% | 98.84% | PUDRa |
+| **CIFAR-10** | 81.19% | 15.21% ❌ | 95.90% | **96.26%** ✓ | 96.13% | 96.13% | 92.75% | VPU |
+| **AlzheimerMRI** | 77.44% | 56.05% | **79.53%** ✓ | 76.89% | 77.02% | 75.21% | 76.16% | PUDRa |
+| **Connect-4** | 68.16% | 54.08% | 88.11% | **88.17%** ✓ | 87.75% | 84.92% | 66.82% | VPU |
+| **Mushrooms** | 99.24% | 71.84% | **99.99%** ✓ | 99.97% | 99.61% | 99.88% | 99.54% | PUDRa |
+| **Spambase** | 92.52% | 47.95% | 91.78% | 93.58% | 92.11% | 85.80% | **94.23%** ✓ | Dist-PU |
+| **IMDb** | 84.22% | 38.43% | 85.53% | **85.76%** ✓ | 85.70% | 81.60% | 84.52% | VPU |
+| **20News** | 93.17% | 52.52% | 93.53% | **93.62%** ✓ | 93.58% | 91.35% | 93.52% | VPU |
+| **Average AUC** | 88.33% | 42.71% ❌ | **92.63%** 🏆 | 92.60% | 92.30% | 90.41% | 89.56% | **PUDRa** |
+
+**Key Observations**:
+- **PUDRa has highest average AUC** (92.63%) - excellent ranking capability
+- **VPU is very close** (92.60%) - consistent ranking performance
+- **AUC rankings differ from F1**: PUDRa wins on AUC but VPU wins on F1
+  - This reveals **calibration differences**: PUDRa excels at ranking but can produce trivial classifiers (Spambase)
+  - VPU provides **better-calibrated predictions** even when ranking is slightly worse
+- **Spambase paradox**: nnPU/PUDRa/nnPUSB have high AUC (>90%) but catastrophic F1 (<3%)
+  - Good ranking (AUC) doesn't guarantee good classification (F1)
+  - VPU and Dist-PU provide both good ranking AND good classification
+
+**Why VPU is still the overall champion despite lower AUC**:
+- F1 score better reflects real-world classification performance
+- VPU's calibration prevents trivial classifier collapse
+- Consistent performance across both metrics
+
+---
+
 ## Method Performance Summary
 
 ### Wins by Method (out of 9 datasets)
 
-| Method | Wins | Average F1 | Key Strengths |
-|--------|------|------------|---------------|
-| **VPU** 🏆 | 2 | **87.57%** | Most consistent, never fails, best all-rounder |
-| **Dist-PU** | 2 | 85.11% | Excels on difficult datasets (Spambase, AlzheimerMRI) |
-| **PUDRa** | 2 | 77.75% | Dominates simple images (MNIST, Fashion-MNIST) |
-| **nnPUSB** | 2 | 78.06% | Strong on text & complex images (20News, CIFAR-10) |
-| **LBE** | 1 | 83.13% | Best on tabular data (Mushrooms 98.91%), struggles on text |
-| **nnPU** | 0 | 74.55% | Solid baseline but outperformed by advanced methods |
-| **nnPU-Log** | 0 | 44.99% ❌ | Consistently fails - not recommended |
+| Method | F1 Wins | Avg F1 | Avg AUC | Key Strengths |
+|--------|---------|--------|---------|---------------|
+| **VPU** 🏆 | 2 | **87.57%** | 92.60% | Most consistent, never fails, best all-rounder, excellent calibration |
+| **Dist-PU** | 2 | 85.11% | 89.56% | Excels on difficult datasets (Spambase, AlzheimerMRI) |
+| **PUDRa** | 2 | 77.75% | **92.63%** 🎯 | Dominates simple images, best ranking (AUC) but calibration issues |
+| **nnPUSB** | 2 | 78.06% | 92.30% | Strong on text & complex images (20News, CIFAR-10) |
+| **LBE** | 1 | 83.13% | 90.41% | Best on tabular data (Mushrooms 98.91%), struggles on text |
+| **nnPU** | 0 | 74.55% | 88.33% | Solid baseline but outperformed by advanced methods |
+| **nnPU-Log** | 0 | 44.99% ❌ | 42.71% ❌ | Consistently fails - not recommended |
+
+**Legend**:
+- 🏆 = Overall F1 champion
+- 🎯 = Overall AUC champion
 
 ---
 
@@ -272,6 +308,33 @@ Yet excels on tabular:
 - Text → VPU, nnPUSB
 
 **However, VPU is the most consistent across all modalities**.
+
+### 4. AUC vs F1: Calibration Matters
+
+**PUDRa has highest average AUC (92.63%) but VPU wins on F1 (87.57%)**:
+
+| Method | Avg F1 | Avg AUC | F1 Rank | AUC Rank | Calibration Quality |
+|--------|--------|---------|---------|----------|---------------------|
+| VPU | **87.57%** 🏆 | 92.60% | 1st | 2nd | **Excellent** ✅ |
+| PUDRa | 77.75% | **92.63%** 🎯 | 5th | 1st | **Poor** ⚠️ |
+| nnPUSB | 78.06% | 92.30% | 4th | 3rd | Poor (Spambase) |
+| Dist-PU | 85.11% | 89.56% | 2nd | 5th | Good |
+| LBE | 83.13% | 90.41% | 3rd | 4th | Good |
+
+**Key Insight: Good ranking (AUC) ≠ Good classification (F1)**
+
+The **Spambase paradox** reveals this clearly:
+- **PUDRa**: 91.78% AUC but 2.18% F1 ❌ - perfect ranking, catastrophic classification
+- **nnPU**: 92.52% AUC but 0.55% F1 ❌ - perfect ranking, catastrophic classification
+- **VPU**: 93.58% AUC and 84.15% F1 ✅ - excellent ranking AND classification
+
+**Why this matters**:
+1. **AUC measures ranking ability** - can the model order samples correctly?
+2. **F1 measures classification performance** - does the model make correct predictions?
+3. **Poor calibration** causes models to collapse to trivial classifiers despite good ranking
+4. **VPU provides better calibration** - preventing trivial classifier collapse
+
+**Recommendation**: **F1 score is more important for practical applications** where you need actual predictions, not just rankings. VPU's superior calibration makes it the better choice despite slightly lower AUC.
 
 ---
 
