@@ -45,9 +45,13 @@ PU-Bench provides a standardized framework for evaluating PU learning algorithms
 ```bash
 git clone https://github.com/XiXiphus/PU-Bench.git
 cd PU-Bench
-uv venv
-uv pip install -r requirements.txt
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv sync
+```
+
+Then run commands with `uv run`:
+
+```bash
+uv run python run_train.py --dataset-config config/datasets_typical/param_sweep_mnist.yaml --methods nnpu
 ```
 
 ### Using pip
@@ -58,14 +62,17 @@ cd PU-Bench
 pip install -r requirements.txt
 ```
 
+> **Note:** The `requirements.txt` file is maintained for backward compatibility. We recommend using uv for faster installation.
+
 Key dependencies: PyTorch, torchvision, scikit-learn, sentence-transformers, pyyaml, rich, faiss-cpu.
 
 ---
 
 ## Dependency Notes
 
-- `requirements.txt` is intentionally **unpinned** to keep installation flexible and avoid version-locking across platforms.
-- In our experience, installing the **latest stable versions** from `requirements.txt` works for normal usage.
+- Dependencies in `pyproject.toml` are intentionally **unpinned** to keep installation flexible and avoid version-locking across platforms.
+- In our experience, installing the **latest stable versions** works for normal usage.
+- For exact reproducibility, use `uv lock` to create a lockfile.
 - If you encounter environment-specific issues, please open an issue or PR with your platform, Python/PyTorch versions, and error log.
 
 ---
@@ -75,7 +82,7 @@ Key dependencies: PyTorch, torchvision, scikit-learn, sentence-transformers, pyy
 **Run a single method on one dataset (conventional setting):**
 
 ```bash
-python run_train.py \
+uv run python run_train.py \
   --dataset-config config/datasets_typical/param_sweep_mnist.yaml \
   --methods nnpu
 ```
@@ -83,7 +90,7 @@ python run_train.py \
 **Run multiple methods:**
 
 ```bash
-python run_train.py \
+uv run python run_train.py \
   --dataset-config config/datasets_typical/param_sweep_cifar10.yaml \
   --methods nnpu vpu distpu p3mixc
 ```
@@ -91,7 +98,7 @@ python run_train.py \
 **Run all methods on all datasets:**
 
 ```bash
-python run_train.py \
+uv run python run_train.py \
   --dataset-config config/datasets_typical/param_sweep_mnist.yaml \
                     config/datasets_typical/param_sweep_cifar10.yaml \
                     config/datasets_typical/param_sweep_imdb_sbert.yaml
@@ -101,7 +108,7 @@ python run_train.py \
 **Preview planned runs (dry run):**
 
 ```bash
-python run_train.py \
+uv run python run_train.py \
   --dataset-config config/datasets_vary_c/param_sweep_mnist.yaml \
   --methods nnpu vpu --dry-run
 ```
@@ -441,7 +448,7 @@ TRAINER_IMPORT_PATHS = {
 **Step 5: Run it**
 
 ```bash
-python run_train.py \
+uv run python run_train.py \
   --dataset-config config/datasets_typical/param_sweep_cifar10.yaml \
   --methods mymethod
 ```

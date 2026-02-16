@@ -1,0 +1,39 @@
+[project]
+name = "pu-bench"
+version = "0.1.0"
+description = "A unified open-source benchmark for Positive-Unlabeled (PU) learning"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "PU-Bench Contributors" }
+]
+
+dependencies = [
+    "faiss-cpu",
+    "torch",
+    "torchvision",
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "tqdm",
+    "rich",
+    "pyyaml",
+    "pandas",
+    "jenkspy",
+    "dill",
+    "pillow",
+    "datasets",
+    "pyarrow",
+    "tabulate",
+    "matplotlib",
+    "joblib",
+    "seaborn",
+    "sentence-transformers",
+    "transformers",
+]
+
+[tool.uv]
+package = false
+# Dependencies are intentionally unpinned to keep installation flexible.
+# For exact reproducibility, use `uv lock` to create a lockfile.
