@@ -47,6 +47,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # Mapping from method name to Trainer import path
 TRAINER_IMPORT_PATHS = {
     "pn": "train.pn_trainer.PNTrainer",
+    "pn_naive": "train.pn_naive_trainer.PNNaiveTrainer",
     "nnpu": "train.nnpu_trainer.NNPUTrainer",
     "nnpu_log": "train.nnpu_log_trainer.NNPULogTrainer",
     "nnpusb": "train.nnpusb_trainer.NNPUSBTrainer",
@@ -67,6 +68,7 @@ TRAINER_IMPORT_PATHS = {
     "cgenpu": "train.cgenpu_trainer.CGenPUTrainer",
     "pulcpbf": "train.pulcpbf_trainer.PULCPBFTrainer",
     "pudra": "train.pudra_trainer.PUDRATrainer",
+    "pudrasb": "train.pudrasb_trainer.PUDRaSBTrainer",
 }
 
 
