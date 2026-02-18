@@ -68,7 +68,16 @@ TRAINER_IMPORT_PATHS = {
     "cgenpu": "train.cgenpu_trainer.CGenPUTrainer",
     "pulcpbf": "train.pulcpbf_trainer.PULCPBFTrainer",
     "pudra": "train.pudra_trainer.PUDRATrainer",
+    "pudra_naive": "train.pudra_naive_trainer.PUDRaNaiveTrainer",
     "pudrasb": "train.pudrasb_trainer.PUDRaSBTrainer",
+    "vpudra": "train.vpudra_trainer.VPUDRaTrainer",
+    "vpudra_fixed": "train.vpudra_fixed_trainer.VPUDRaFixedTrainer",
+    "vpudra_softlabel": "train.vpudra_softlabel_trainer.VPUDRaSoftLabelTrainer",
+    "vpudra_pp": "train.vpudra_pp_trainer.VPUDRaPointProcessTrainer",
+    "vpudra_naive": "train.vpudra_naive_trainer.VPUDRaNaiveTrainer",
+    "vpudra_naive_logmse": "train.vpudra_naive_logmse_trainer.VPUDRaNaiveLogMSETrainer",
+    "vpudra_naive_logmae": "train.vpudra_naive_logmae_trainer.VPUDRaNaiveLogMAETrainer",
+    "vpu_nomixup": "train.vpu_nomixup_trainer.VPUNoMixUpTrainer",
 }
 
 

@@ -390,6 +390,115 @@ def select_model(method: str, params: dict, prior: float):
 _zero_one_loss = lambda x: (torch.sign(-x) + 1) / 2
 
 
+def compute_calibration_metrics(
+    y_true: np.ndarray,
+    y_scores: np.ndarray,
+    n_bins: int = 15,
+) -> dict[str, float]:
+    """
+    Compute calibration metrics using isotonic regression and binned methods.
+
+    Includes A-NICE and S-NICE (Normalized Integrated Calibration Error),
+    which normalize calibration error by a "no-skill" baseline that predicts
+    the average positive rate for all samples.
+
+    Interpretation Scale:
+        - A-NICE = 0.0: Perfect calibration
+        - A-NICE = 1.0: Random/baseline (predicts average for everyone)
+        - A-NICE > 1.0: Worse than random (catastrophic)
+
+    Args:
+        y_true: Ground truth binary labels (0/1)
+        y_scores: Model scores (logits or probabilities)
+        n_bins: Number of bins for ECE/MCE computation
+
+    Returns:
+        dict with keys: anice, snice, ece, mce, brier
+    """
+    from sklearn.isotonic import IsotonicRegression
+
+    # Convert logits to probabilities if needed
+    if np.any(y_scores < 0) or np.any(y_scores > 1):
+        y_probs = 1 / (1 + np.exp(-np.clip(y_scores, -500, 500)))
+    else:
+        y_probs = y_scores
+
+    # Clip to avoid numerical issues
+    y_probs = np.clip(y_probs, 1e-7, 1 - 1e-7)
+
+    # --- A-NICE and S-NICE (Normalized Isotonic Calibration Error) ---
+    # 1. Calculate base rate (no-skill prediction)
+    base_rate = float(np.mean(y_true))
+
+    # 2. Add anchor points for full [0,1] coverage
+    y_true_anchored = np.concatenate([[0, 0, 1, 1], y_true])
+    y_probs_anchored = np.concatenate([[0, 1, 0, 1], y_probs])
+
+    # 3. Sort data by probability
+    sorted_indices = np.argsort(y_probs_anchored)
+    sorted_probs = y_probs_anchored[sorted_indices]
+    sorted_labels = y_true_anchored[sorted_indices]
+
+    # 4. Fit isotonic regression
+    iso_reg = IsotonicRegression(y_min=0, y_max=1, out_of_bounds='clip')
+    sorted_iso_probs = iso_reg.fit_transform(sorted_probs, sorted_labels)
+
+    # 5. Calculate step widths for integration
+    # Integration uses trapezoidal rule with explicit step widths
+    step_widths = np.diff(sorted_probs, append=sorted_probs[-1])
+
+    # 6. Calculate RAW errors (isotonic curve vs diagonal)
+    ice_raw = float(np.sum(step_widths * np.abs(sorted_iso_probs - sorted_probs)))
+    isce_raw = float(np.sum(step_widths * (sorted_iso_probs - sorted_probs)**2))
+
+    # 7. Calculate BASELINE errors (flat line at base_rate vs diagonal)
+    # Analytic solution for integral from 0 to 1
+    baseline_ice = (base_rate**2 + (1 - base_rate)**2) / 2.0
+    baseline_isce = (base_rate**3 + (1 - base_rate)**3) / 3.0
+
+    # 8. Normalize by baseline (avoid division by zero)
+    if baseline_ice > 1e-10:
+        anice = ice_raw / baseline_ice
+    else:
+        anice = 0.0  # Perfect balance (50/50) → baseline_ice ≈ 0.25
+
+    if baseline_isce > 1e-10:
+        snice = isce_raw / baseline_isce
+    else:
+        snice = 0.0
+
+    # --- ECE and MCE (Binned Calibration) ---
+    bin_boundaries = np.linspace(0, 1, n_bins + 1)
+    bin_lowers = bin_boundaries[:-1]
+    bin_uppers = bin_boundaries[1:]
+
+    ece = 0.0
+    mce = 0.0
+
+    for bin_lower, bin_upper in zip(bin_lowers, bin_uppers):
+        in_bin = (y_probs > bin_lower) & (y_probs <= bin_upper)
+        prop_in_bin = float(np.mean(in_bin))
+
+        if prop_in_bin > 0:
+            accuracy_in_bin = float(np.mean(y_true[in_bin]))
+            avg_confidence_in_bin = float(np.mean(y_probs[in_bin]))
+
+            bin_error = abs(avg_confidence_in_bin - accuracy_in_bin)
+            ece += prop_in_bin * bin_error
+            mce = max(mce, bin_error)
+
+    # --- Brier Score (MSE) ---
+    brier = float(np.mean((y_probs - y_true) ** 2))
+
+    return {
+        "anice": anice,
+        "snice": snice,
+        "ece": ece,
+        "mce": mce,
+        "brier": brier,
+    }
+
+
 def evaluate_metrics(
     model: nn.Module,
     loader: DataLoader,
@@ -544,6 +653,29 @@ def evaluate_metrics(
     except Exception:
         auc = float("nan")
 
+    # Calibration metrics (A-NICE, S-NICE, ECE, MCE, Brier)
+    try:
+        if len(np.unique(y_true_arr)) < 2:
+            # Edge case: single class, calibration undefined
+            calib_metrics = {
+                "anice": float("nan"),
+                "snice": float("nan"),
+                "ece": float("nan"),
+                "mce": float("nan"),
+                "brier": float("nan"),
+            }
+        else:
+            calib_metrics = compute_calibration_metrics(y_true_arr, y_score_arr)
+    except Exception:
+        # Fallback for any unexpected errors
+        calib_metrics = {
+            "anice": float("nan"),
+            "snice": float("nan"),
+            "ece": float("nan"),
+            "mce": float("nan"),
+            "brier": float("nan"),
+        }
+
     return {
         "error": 1 - acc,
         "risk": risk,
@@ -552,6 +684,7 @@ def evaluate_metrics(
         "recall": rec,
         "f1": f1,
         "auc": auc,
+        **calib_metrics,  # Unpack calibration metrics
     }
 
 

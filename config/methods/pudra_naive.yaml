@@ -1,0 +1,55 @@
+pudra_naive:
+  # Optimizer hyperparameters (same as other PUDRa variants)
+  optimizer: "adam"
+  lr: 0.0003
+  weight_decay: 0.0001
+
+  # Training schedule
+  batch_size: 256
+  num_epochs: 40
+  seed: 42
+
+  # PUDRa-naive specific
+  epsilon: 1e-7       # Numerical stability in log operations
+
+  # Note: This variant uses the pure PUDRa base loss WITHOUT:
+  #       1. Prior weighting (no π multiplication)
+  #       2. MixUp consistency regularization (no mix_alpha)
+  #
+  # Loss formulation:
+  #   L = E_P[-log p + p] + E_U[p]  (NO π weighting, NO consistency!)
+  #
+  # Comparison Matrix:
+  #   |                    | No Regularization     | With MixUp Regularization  |
+  #   |--------------------|----------------------|----------------------------|
+  #   | With prior         | PUDRa                | VPUDRa-PP/Fixed           |
+  #   | Without prior      | PUDRa-naive ← (NEW!) | VPUDRa-naive              |
+  #
+  # This tests:
+  #   1. Whether the pure base loss works without any enhancements
+  #   2. The impact of MixUp regularization (compare to VPUDRa-naive)
+  #   3. Whether prior knowledge is necessary (compare to PUDRa)
+  #
+  # Key properties:
+  #   - Simplest possible PU density ratio formulation
+  #   - Symmetric loss: L(1,p) = -log p + p
+  #   - No hyperparameters for prior or regularization
+  #   - Pure test of the base PUDRa objective
+
+  # Label scheme (standard PU convention)
+  label_scheme:
+    true_positive_label: 1
+    true_negative_label: 0
+    pu_labeled_label: 1
+    pu_unlabeled_label: -1
+
+  # Early stopping configuration
+  checkpoint:
+    enabled: true
+    save_model: false
+    monitor: "val_f1"      # Monitor validation F1 score
+    mode: "max"            # Maximize F1
+    early_stopping:
+      enabled: true
+      patience: 10         # Stop if no improvement for 10 epochs
+      min_delta: 0.0001    # Minimum improvement threshold
