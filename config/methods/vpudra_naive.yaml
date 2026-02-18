@@ -1,0 +1,51 @@
+vpudra_naive:
+  # Optimizer hyperparameters (same as other VPUDRa variants)
+  optimizer: "adam"
+  lr: 0.0003
+  weight_decay: 0.0001
+
+  # Training schedule
+  batch_size: 256
+  num_epochs: 40
+  seed: 42
+
+  # VPUDRa-naive specific
+  mix_alpha: 0.3      # Beta distribution parameter for MixUp (same as VPU)
+  epsilon: 1e-7       # Numerical stability in log operations
+
+  # Note: This variant uses the original PUDRa loss WITHOUT prior weighting
+  # Loss formulation:
+  #   Base loss: E_P[-log p + p] + E_U[p]  (NO π multiplication!)
+  #   This is the symmetric form from original PUDRa paper
+  #
+  # Comparison:
+  #   - VPUDRa-Fixed/PP: π * E_P[-log p] + E_U[p]  (prior-weighted)
+  #   - VPUDRa-naive: E_P[-log p + p] + E_U[p]     (NO prior weighting)
+  #   - Original PUDRa: Same base loss but NO MixUp (collapses on Spambase)
+  #
+  # This tests whether:
+  #   1. MixUp regularization alone can stabilize PUDRa
+  #   2. Prior weighting is necessary or optional when MixUp is present
+  #
+  # Key features:
+  #   - Anchor assumption (for stability): μ = λ*p(x) + (1-λ)*1.0
+  #   - Point Process consistency: L(μ,p) = -μ log p + p
+  #   - Original PUDRa base loss (no prior)
+
+  # Label scheme (standard PU convention)
+  label_scheme:
+    true_positive_label: 1
+    true_negative_label: 0
+    pu_labeled_label: 1
+    pu_unlabeled_label: -1
+
+  # Early stopping configuration
+  checkpoint:
+    enabled: true
+    save_model: false
+    monitor: "val_f1"      # Monitor validation F1 score
+    mode: "max"            # Maximize F1
+    early_stopping:
+      enabled: true
+      patience: 10         # Stop if no improvement for 10 epochs
+      min_delta: 0.0001    # Minimum improvement threshold
