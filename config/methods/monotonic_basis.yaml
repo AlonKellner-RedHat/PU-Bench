@@ -1,0 +1,32 @@
+monotonic_basis:
+  optimizer: "adam"
+  lr: 0.0003
+  weight_decay: 0.0001
+  batch_size: 256
+  num_epochs: 40
+  seed: 42
+
+  # Monotonic Basis Loss hyperparameters
+  num_repetitions: 3        # Number of repetition blocks
+  num_fourier: 5            # Number of Fourier coefficients per basis
+  use_prior: true           # Whether to condition on prior (enables transfer learning)
+  oracle_mode: false        # false=PU mode (labels: 1/-1), true=Oracle mode (labels: 1/0)
+  init_scale: 0.01          # Initialization scale for random parameters
+
+  # Label scheme for PU learning
+  label_scheme:
+    true_positive_label: 1
+    true_negative_label: 0
+    pu_labeled_label: 1
+    pu_unlabeled_label: -1
+
+  # Checkpointing and early stopping
+  checkpoint:
+    enabled: true
+    save_model: true        # Save model for transfer learning
+    monitor: "test_f1"
+    mode: "max"
+    early_stopping:
+      enabled: true
+      patience: 15          # More patience for learnable loss (default is 10)
+      min_delta: 0.0001
