@@ -23,3 +23,9 @@ seaborn
 sentence-transformers
 torchtext
 transformers
+hvplot
+holoviews
+bokeh
+jupyter
+ipywidgets
+panel

@@ -31,6 +31,13 @@ dependencies = [
     "seaborn",
     "sentence-transformers",
     "transformers",
+    "hvplot",
+    "holoviews",
+    "bokeh",
+    "jupyter",
+    "ipywidgets",
+    "panel",
+    "jupyter_bokeh"
 ]
 
 [tool.uv]
