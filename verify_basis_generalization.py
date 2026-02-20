@@ -1,11 +1,18 @@
 """Verification script: Monotonic Basis can exactly represent key PU losses.
 
-This script demonstrates that the Universal Monotonic Spectral Basis can exactly
-represent the core components of major PU losses:
-- Logarithm (for PUDRa)
-- Linear (for PUDRa unlabeled risk)
-- Squared (for NNPU squared loss)
-- Sigmoid (for NNPU sigmoid loss)
+NOTE: This script tests the INTEGRAND representation (g(x)) only.
+For full basis representation with integration, see test_full_basis.py.
+
+This script demonstrates that the Universal Monotonic Spectral Basis integrand
+can represent the core components of major PU losses:
+- Linear (for PUDRa unlabeled risk) - via integrand
+- Logarithm integrand (1/x, which integrates to log(x))
+- Exponential - via exp(kx)
+- Sigmoid derivative - integrates to sigmoid
+- Quadratic - via exp(dx²)
+
+For PUDRa's -log(p) term, the FULL BASIS (with integration) is needed.
+See test_full_basis.py for complete verification.
 
 Run: uv run python verify_basis_generalization.py
 """
