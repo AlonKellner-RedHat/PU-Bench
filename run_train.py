@@ -69,6 +69,7 @@ TRAINER_IMPORT_PATHS = {
     "pulcpbf": "train.pulcpbf_trainer.PULCPBFTrainer",
     "pudra": "train.pudra_trainer.PUDRATrainer",
     "pudra_naive": "train.pudra_naive_trainer.PUDRaNaiveTrainer",
+    "pudra_unified": "train.pudra_unified_trainer.PUDRaUnifiedTrainer",
     "pudrasb": "train.pudrasb_trainer.PUDRaSBTrainer",
     "vpudra": "train.vpudra_trainer.VPUDRaTrainer",
     "vpudra_fixed": "train.vpudra_fixed_trainer.VPUDRaFixedTrainer",

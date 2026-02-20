@@ -1,0 +1,47 @@
+pudra_unified:
+  # Optimizer hyperparameters (same as PUDRa variants)
+  optimizer: "adam"
+  lr: 0.0003
+  weight_decay: 0.0001
+
+  # Training schedule
+  batch_size: 256
+  num_epochs: 40
+  seed: 42
+
+  # PUDRa-unified specific
+  epsilon: 1e-7       # Numerical stability in log operations
+
+  # Key Difference from PUDRa-naive:
+  #   - PUDRa-naive: E_P[-log p + p] + E_U[p]
+  #     → Separate averaging over positive and unlabeled
+  #   - PUDRa-unified: E_all[loss(x, t)]
+  #     → Unified averaging over all samples
+  #
+  # Mathematical Formulation:
+  #   For each sample: loss_i = {-log p + p if t=1, p if t=-1}
+  #   Total loss: mean(loss_i for all i)
+  #
+  # Expected Properties:
+  #   - More stable to batch composition variations
+  #   - Natural weighting by sample count
+  #   - Potentially better gradient stability
+  #   - Could perform better with varying positive/unlabeled ratios
+
+  # Label scheme (standard PU convention)
+  label_scheme:
+    true_positive_label: 1
+    true_negative_label: 0
+    pu_labeled_label: 1
+    pu_unlabeled_label: -1
+
+  # Early stopping configuration
+  checkpoint:
+    enabled: true
+    save_model: false
+    monitor: "val_f1"      # Monitor validation F1 score
+    mode: "max"            # Maximize F1
+    early_stopping:
+      enabled: true
+      patience: 10         # Stop if no improvement for 10 epochs
+      min_delta: 0.0001    # Minimum improvement threshold
