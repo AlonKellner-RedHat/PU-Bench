@@ -33,7 +33,7 @@ import os
 # Add parent directory to path to import utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.monotonic_basis_torch import monotonic_basis_integrand
+from utils.monotonic_basis_torch import monotonic_basis_full
 
 
 class MonotonicBasisLoss(nn.Module):
@@ -192,7 +192,10 @@ class MonotonicBasisLoss(nn.Module):
         return baseline, fourier
 
     def apply_basis(self, x: torch.Tensor, idx: int) -> torch.Tensor:
-        """Apply basis function at index idx to input x.
+        """Apply full basis function at index idx to input x.
+
+        Computes f(x) = c₀·x + ∫[1,x] g(t) dt where g is the integrand.
+        The derivative is f'(x) = c₀ + g(x), handled automatically by PyTorch autograd.
 
         Args:
             x: Input tensor, shape [N] or [N, ...] or scalar
@@ -214,7 +217,7 @@ class MonotonicBasisLoss(nn.Module):
         h = baseline[7]
         t_0 = baseline[8]
 
-        return monotonic_basis_integrand(x, c_0, a, b, c, d, e, g, h, t_0, fourier)
+        return monotonic_basis_full(x, c_0, a, b, c, d, e, g, h, t_0, fourier)
 
     def forward(
         self,
