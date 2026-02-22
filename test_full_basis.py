@@ -33,7 +33,7 @@ def test_integration_accuracy():
     g_param = torch.tensor(0.0)
     h = torch.tensor(1.0)
     t_0 = torch.tensor(0.5)
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     # Compute full basis
     f_x = monotonic_basis_full(
@@ -79,7 +79,7 @@ def test_derivative_relationship():
     g_param = torch.tensor(0.0)
     h = torch.tensor(1.0)
     t_0 = torch.tensor(0.5)
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     # Compute full basis
     f_x = monotonic_basis_full(
@@ -136,7 +136,7 @@ def test_logarithm_exact():
     g_param = torch.tensor(0.0)
     h = torch.tensor(1.0)
     t_0 = torch.tensor(0.5)
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     # Compute full basis
     f_x = monotonic_basis_full(
@@ -184,7 +184,7 @@ def test_negative_log_for_pudra():
     g_param = torch.tensor(0.0)
     h = torch.tensor(1.0)
     t_0 = torch.tensor(0.5)
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     # Compute -log(x) directly
     neg_log_x = monotonic_basis_full(

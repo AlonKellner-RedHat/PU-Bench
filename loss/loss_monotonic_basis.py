@@ -46,7 +46,7 @@ class MonotonicBasisLoss(nn.Module):
 
     Attributes:
         num_repetitions: Number of repetition blocks (default 3)
-        num_fourier: Number of Fourier coefficients per basis (default 5)
+        num_fourier: Number of Fourier coefficients per basis (default 16, vectorized)
         use_prior: Whether to condition parameters on class prior
         prior: Class prior π (only used if use_prior=True)
         oracle_mode: If True, expects binary labels (0/1); if False, PU labels (±1)
@@ -85,7 +85,7 @@ class MonotonicBasisLoss(nn.Module):
     def __init__(
         self,
         num_repetitions: int = 3,
-        num_fourier: int = 5,
+        num_fourier: int = 16,
         use_prior: bool = True,
         prior: float = 0.5,
         oracle_mode: bool = False,
@@ -95,7 +95,7 @@ class MonotonicBasisLoss(nn.Module):
 
         Args:
             num_repetitions: Number of repetition blocks
-            num_fourier: Number of Fourier coefficients per basis function
+            num_fourier: Number of Fourier coefficients per basis function (default 16)
             use_prior: If True, parameters are linear functions of prior
             prior: Class prior value (only used if use_prior=True)
             oracle_mode: If True, expects binary labels; if False, PU labels

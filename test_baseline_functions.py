@@ -35,7 +35,7 @@ def test_pure_logarithm():
     g = torch.tensor(0.0)
     h = torch.tensor(1.0)
     t_0 = torch.tensor(0.5)
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
     expected = torch.log(x)
@@ -78,7 +78,7 @@ def test_pure_linear():
     g = torch.tensor(0.0)
     h = torch.tensor(1.0)
     t_0 = torch.tensor(0.5)
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k)
     expected = k * x
@@ -120,7 +120,7 @@ def test_exponential_in_exponent():
     g = torch.tensor(0.0)
     h = torch.tensor(1.0)
     t_0 = torch.tensor(0.5)
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
 
@@ -164,7 +164,7 @@ def test_power_law():
     g = torch.tensor(0.0)
     h = torch.tensor(1.0)
     t_0 = torch.tensor(0.5)
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
 
@@ -203,7 +203,7 @@ def test_pudra_combination():
     c_1_log = torch.tensor(1.0)
     a_log = torch.tensor(-1.0)
     zeros = torch.tensor(0.0)
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     log_p = monotonic_basis_full(
         p, c_0_log, c_1_log, a_log, zeros, zeros, zeros, zeros, zeros,
@@ -264,7 +264,7 @@ def test_sigmoid_derivative_integration():
     g_param = torch.tensor(1.0)  # Sigmoid derivative amplitude
     h = torch.tensor(1.0)        # Steepness
     t_0 = torch.tensor(0.0)      # Center
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g_param, h, t_0, d_k, num_integration_points=100)
 
@@ -313,7 +313,7 @@ def test_quadratic():
     g = torch.tensor(0.0)
     h = torch.tensor(1.0)
     t_0 = torch.tensor(0.5)
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
 
@@ -357,7 +357,7 @@ def test_constant_offset():
     g = torch.tensor(0.0)
     h = torch.tensor(1.0)
     t_0 = torch.tensor(0.5)
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
 
@@ -404,7 +404,7 @@ def test_combined_affine():
     g = torch.tensor(0.0)
     h = torch.tensor(1.0)
     t_0 = torch.tensor(0.5)
-    d_k = torch.zeros(5)
+    d_k = torch.zeros(16)
 
     result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
 

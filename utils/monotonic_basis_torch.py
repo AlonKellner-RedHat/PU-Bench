@@ -151,16 +151,20 @@ def monotonic_basis_integrand(
 
     # Spectral (Fourier) terms: Σ dₖ·cos(2πk·log(x))
     # d_k shape: [K]
-    # Need to compute for k=1..K
-    spectral_term = torch.zeros_like(x)
+    # Vectorized computation for efficiency
     K = d_k.shape[0]
     log_x_safe = torch.log(x_safe)
 
-    for k in range(K):
-        k_val = k + 1  # k starts from 1
-        spectral_term = spectral_term + d_k[k] * torch.cos(
-            2 * np.pi * k_val * log_x_safe
-        )
+    # Create k values [1, 2, 3, ..., K]
+    k_values = torch.arange(1, K + 1, device=d_k.device, dtype=d_k.dtype)
+
+    # Compute all cosines at once using broadcasting
+    # Shape: k_values [K] * log_x_safe [...] -> [K, ...]
+    angles = 2 * np.pi * k_values.view(-1, *([1] * log_x_safe.ndim)) * log_x_safe
+    cosines = torch.cos(angles)
+
+    # Multiply by coefficients and sum: d_k [K] * cosines [K, ...] -> [...]
+    spectral_term = torch.sum(d_k.view(-1, *([1] * log_x_safe.ndim)) * cosines, dim=0)
 
     # Sum all terms in exponent
     exponent = log_term + poly_term + exp_term + sigmoid_term + spectral_term
