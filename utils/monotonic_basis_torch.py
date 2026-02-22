@@ -3,7 +3,7 @@
 This module provides a differentiable version of the monotonic basis for use in
 learnable loss functions. The full basis is:
 
-    f(x; θ) = c₀·x + ∫[1,x] g(t; θ) dt
+    f(x; θ) = c₀·x + c₁·∫[1,x] g(t; θ) dt
 
 where the integrand is:
 
@@ -11,11 +11,17 @@ where the integrand is:
                   g·σ'(h·(x-t₀)) + Σ dₖ·cos(2πk·log(x)))
 
 The derivative relationship is:
-    f'(x) = c₀ + g(x)
+    f'(x) = c₀ + c₁·g(x)
+
+Parameters:
+    c₀: Linear term coefficient (scales x directly)
+    c₁: Integral term coefficient (scales the integral contribution)
+    a, b, c, d, e, g, h, t₀, dₖ: Integrand parameters
 
 PyTorch's autograd automatically computes gradients through the integration.
 
 Key features:
+- Independent control via c₀ (linear) and c₁ (integral) scaling
 - Differentiable numerical integration using trapezoidal rule
 - PyTorch tensors for GPU acceleration
 - Fully compatible with autograd
@@ -38,10 +44,10 @@ class IntegrateMonotonicBasis(torch.autograd.Function):
     """
 
     @staticmethod
-    def forward(ctx, x, c_0, a, b, c, d, e, g, h, t_0, d_k, num_points):
+    def forward(ctx, x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_points):
         """Compute integral numerically."""
         # Save for backward
-        ctx.save_for_backward(x, c_0, a, b, c, d, e, g, h, t_0, d_k)
+        ctx.save_for_backward(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k)
 
         x_flat = x.view(-1)
         N = x_flat.shape[0]
@@ -57,7 +63,7 @@ class IntegrateMonotonicBasis(torch.autograd.Function):
 
             # Use .item() here is OK because we handle gradients in backward()
             t = torch.linspace(1.0, x_i.item(), num_points, device=x.device)
-            g_t = monotonic_basis_integrand(t, c_0, a, b, c, d, e, g, h, t_0, d_k)
+            g_t = monotonic_basis_integrand(t, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k)
 
             dt = (x_i.item() - 1.0) / (num_points - 1)
             integral = dt * (g_t[0] / 2 + g_t[1:-1].sum() + g_t[-1] / 2)
@@ -72,21 +78,22 @@ class IntegrateMonotonicBasis(torch.autograd.Function):
 
         d/dx[∫[1,x] g(t) dt] = g(x)
         """
-        x, c_0, a, b, c, d, e, g, h, t_0, d_k = ctx.saved_tensors
+        x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k = ctx.saved_tensors
 
         # Gradient w.r.t. x: g(x)
-        g_x = monotonic_basis_integrand(x, c_0, a, b, c, d, e, g, h, t_0, d_k)
+        g_x = monotonic_basis_integrand(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k)
         grad_x = grad_output * g_x
 
         # Gradients w.r.t. parameters would need more complex computation
         # For now, return None for parameter gradients
         # TODO: Implement parameter gradients if needed for meta-learning
-        return grad_x, None, None, None, None, None, None, None, None, None, None, None
+        return grad_x, None, None, None, None, None, None, None, None, None, None, None, None
 
 
 def monotonic_basis_integrand(
     x: torch.Tensor,
     c_0: torch.Tensor,
+    c_1: torch.Tensor,
     a: torch.Tensor,
     b: torch.Tensor,
     c: torch.Tensor,
@@ -102,6 +109,7 @@ def monotonic_basis_integrand(
     Args:
         x: Input values, shape [...] (any shape)
         c_0: Linear coefficient (not used in integrand, only in full basis)
+        c_1: Integral scaling coefficient (not used in integrand, only in full basis)
         a: Log-power coefficient
         b: Constant offset
         c: Linear coefficient
@@ -118,6 +126,7 @@ def monotonic_basis_integrand(
     Note:
         All inputs are tensors to support autograd.
         Returns exp(exponent) which is always positive, guaranteeing monotonicity.
+        c_0 and c_1 are not used here - they scale the linear and integral terms in the full basis.
     """
     # Clamp x to avoid log(0) and exp overflow
     x_safe = torch.clamp(x, min=1e-8, max=1e8)
@@ -166,6 +175,7 @@ def monotonic_basis_integrand(
 def monotonic_basis_full(
     x: torch.Tensor,
     c_0: torch.Tensor,
+    c_1: torch.Tensor,
     a: torch.Tensor,
     b: torch.Tensor,
     c: torch.Tensor,
@@ -177,14 +187,15 @@ def monotonic_basis_full(
     d_k: torch.Tensor,
     num_integration_points: int = 50,
 ) -> torch.Tensor:
-    """Compute full monotonic basis f(x) = c₀·x + ∫[1,x] g(t) dt.
+    """Compute full monotonic basis f(x) = c₀·x + c₁·∫[1,x] g(t) dt.
 
     This is the complete basis function that integrates the integrand g(t).
-    The derivative is: f'(x) = c₀ + g(x), handled by custom autograd function.
+    The derivative is: f'(x) = c₀ + c₁·g(x), handled by custom autograd function.
 
     Args:
         x: Input values, shape [N]
-        c_0: Linear coefficient
+        c_0: Linear term coefficient (scales x directly)
+        c_1: Integral term coefficient (scales the integral)
         a: Log-power coefficient
         b: Constant offset
         c: Linear coefficient in integrand
@@ -200,17 +211,19 @@ def monotonic_basis_full(
         Basis values f(x), shape [N]
 
     Note:
-        Uses custom autograd function that ensures df/dx = c₀ + g(x) exactly.
+        Uses custom autograd function that ensures df/dx = c₀ + c₁·g(x) exactly.
+        Set c_1=0 to get pure linear f(x) = c₀·x (no integration needed).
+        Set c_0=0 to get pure integral f(x) = c₁·∫g(t)dt.
     """
     # Linear term
     linear_term = c_0 * x
 
     # Integral term using custom autograd function
-    integral_term = IntegrateMonotonicBasis.apply(
-        x, c_0, a, b, c, d, e, g, h, t_0, d_k, num_integration_points
+    integral_term = c_1 * IntegrateMonotonicBasis.apply(
+        x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points
     )
 
-    # Full basis: f(x) = c₀·x + integral
+    # Full basis: f(x) = c₀·x + c₁·integral
     return linear_term + integral_term
 
 

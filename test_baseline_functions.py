@@ -26,6 +26,7 @@ def test_pure_logarithm():
 
     # Parameters for log(x)
     c_0 = torch.tensor(0.0)     # No linear term
+    c_1 = torch.tensor(1.0)     # Integral coefficient = 1
     a = torch.tensor(-1.0)      # Makes g(t) = 1/t
     b = torch.tensor(0.0)
     c = torch.tensor(0.0)
@@ -36,7 +37,7 @@ def test_pure_logarithm():
     t_0 = torch.tensor(0.5)
     d_k = torch.zeros(5)
 
-    result = monotonic_basis_full(x, c_0, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
+    result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
     expected = torch.log(x)
 
     rel_error = torch.abs((result - expected) / (expected.abs() + 1e-8)).max().item() * 100
@@ -55,21 +56,22 @@ def test_pure_logarithm():
 
 
 def test_pure_linear():
-    """Test f(x) = k·x with c₀=k, but accounting for integral term."""
+    """Test f(x) = k·x with c₀=k, c₁=0."""
     print("\n" + "="*70)
     print("Test 2: Pure Linear f(x) = k·x")
     print("="*70)
-    print("Parameters: c₀=2.5, b=-50 (makes g(t) ≈ 0)")
-    print("Mechanism: Linear term c₀·x dominates, integral ≈ 0 due to exp(-50)")
+    print("Parameters: c₀=2.5, c₁=0 (no integral contribution)")
+    print("Mechanism: Linear term c₀·x only, integral term disabled with c₁=0")
 
     x = torch.linspace(0.1, 5.0, 20)
     k = 2.5
 
     # Parameters for k·x
-    # Need to make integral ≈ 0 by setting b very negative
+    # Set c_1=0 to disable integral contribution (much cleaner than b=-50 hack!)
     c_0 = torch.tensor(k)
+    c_1 = torch.tensor(0.0)  # Disable integral
     a = torch.tensor(0.0)
-    b = torch.tensor(-50.0)  # Makes g(t) = exp(-50) ≈ 0
+    b = torch.tensor(0.0)
     c = torch.tensor(0.0)
     d = torch.tensor(0.0)
     e = torch.tensor(0.0)
@@ -78,7 +80,7 @@ def test_pure_linear():
     t_0 = torch.tensor(0.5)
     d_k = torch.zeros(5)
 
-    result = monotonic_basis_full(x, c_0, a, b, c, d, e, g, h, t_0, d_k)
+    result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k)
     expected = k * x
 
     error = torch.abs(result - expected).max().item()
@@ -109,6 +111,7 @@ def test_exponential_in_exponent():
 
     # Parameters for exponential integrand
     c_0 = torch.tensor(0.0)
+    c_1 = torch.tensor(1.0)
     a = torch.tensor(0.0)
     b = torch.tensor(0.0)
     c = torch.tensor(k)      # Exponential term in exponent
@@ -119,7 +122,7 @@ def test_exponential_in_exponent():
     t_0 = torch.tensor(0.5)
     d_k = torch.zeros(5)
 
-    result = monotonic_basis_full(x, c_0, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
+    result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
 
     # Expected: ∫[1,x] exp(k·t) dt = [exp(k·t)/k]₁ˣ = (exp(k·x) - exp(k))/k
     expected = (torch.exp(k * x) - torch.exp(torch.tensor(k))) / k
@@ -152,6 +155,7 @@ def test_power_law():
 
     # Parameters for power law
     c_0 = torch.tensor(0.0)
+    c_1 = torch.tensor(1.0)
     a = torch.tensor(alpha)   # Makes g(t) = exp(alpha·log(t)) = t^alpha
     b = torch.tensor(0.0)
     c = torch.tensor(0.0)
@@ -162,7 +166,7 @@ def test_power_law():
     t_0 = torch.tensor(0.5)
     d_k = torch.zeros(5)
 
-    result = monotonic_basis_full(x, c_0, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
+    result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
 
     # Expected: ∫[1,x] t^alpha dt = [t^(alpha+1)/(alpha+1)]₁ˣ = (x^(alpha+1) - 1)/(alpha+1)
     expected = (x**(alpha + 1) - 1) / (alpha + 1)
@@ -188,29 +192,31 @@ def test_pudra_combination():
     print("Test 5: PUDRa Combination f(p) = -log(p) + p")
     print("="*70)
     print("Using two separate basis functions combined:")
-    print("  f1(p) = -log(p)  [a=-1, c₀=0, multiply by -1]")
-    print("  f2(p) = p        [c₀=1, a=0]")
+    print("  f1(p) = log(p)   [a=-1, c₀=0, c₁=1]")
+    print("  f2(p) = p        [c₀=1, c₁=0]")
+    print("  Result: -f1 + f2 = -log(p) + p")
 
     p = torch.tensor([0.1, 0.3, 0.5, 0.7, 0.9])
 
     # First basis: log(p)
     c_0_log = torch.tensor(0.0)
+    c_1_log = torch.tensor(1.0)
     a_log = torch.tensor(-1.0)
     zeros = torch.tensor(0.0)
     d_k = torch.zeros(5)
 
     log_p = monotonic_basis_full(
-        p, c_0_log, a_log, zeros, zeros, zeros, zeros, zeros,
+        p, c_0_log, c_1_log, a_log, zeros, zeros, zeros, zeros, zeros,
         torch.tensor(1.0), torch.tensor(0.5), d_k, num_integration_points=100
     )
 
-    # Second basis: p (need to suppress integral)
+    # Second basis: p (c_1=0 to disable integral)
     c_0_linear = torch.tensor(1.0)
+    c_1_linear = torch.tensor(0.0)  # Disable integral (cleaner than b=-50!)
     a_linear = torch.tensor(0.0)
-    b_suppress = torch.tensor(-50.0)  # Makes g(t) ≈ 0
 
     linear_p = monotonic_basis_full(
-        p, c_0_linear, a_linear, b_suppress, zeros, zeros, zeros, zeros,
+        p, c_0_linear, c_1_linear, a_linear, zeros, zeros, zeros, zeros, zeros,
         torch.tensor(1.0), torch.tensor(0.5), d_k
     )
 
@@ -249,6 +255,7 @@ def test_sigmoid_derivative_integration():
     # This test shows the sigmoid derivative term exists
 
     c_0 = torch.tensor(0.0)
+    c_1 = torch.tensor(1.0)
     a = torch.tensor(0.0)
     b = torch.tensor(0.0)
     c = torch.tensor(0.0)
@@ -259,7 +266,7 @@ def test_sigmoid_derivative_integration():
     t_0 = torch.tensor(0.0)      # Center
     d_k = torch.zeros(5)
 
-    result = monotonic_basis_full(x, c_0, a, b, c, d, e, g_param, h, t_0, d_k, num_integration_points=100)
+    result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g_param, h, t_0, d_k, num_integration_points=100)
 
     # This won't give exactly sigmoid because σ' is in the exponent
     # But we can show the sigmoid derivative term affects the output
@@ -297,6 +304,7 @@ def test_quadratic():
 
     # Parameters: g(t) = exp(1·log(t)) = t, integrates to t²/2
     c_0 = torch.tensor(0.0)
+    c_1 = torch.tensor(1.0)
     a = torch.tensor(1.0)    # Makes g(t) = t
     b = torch.tensor(0.0)
     c = torch.tensor(0.0)
@@ -307,7 +315,7 @@ def test_quadratic():
     t_0 = torch.tensor(0.5)
     d_k = torch.zeros(5)
 
-    result = monotonic_basis_full(x, c_0, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
+    result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
 
     # Expected: ∫[1,x] t dt = [t²/2]₁ˣ = (x² - 1)/2
     expected = (x**2 - 1) / 2
@@ -340,6 +348,7 @@ def test_constant_offset():
 
     # Parameters: g(t) = exp(b) = exp(k) = constant
     c_0 = torch.tensor(0.0)
+    c_1 = torch.tensor(1.0)
     a = torch.tensor(0.0)
     b = torch.tensor(k)      # Constant in exponent
     c = torch.tensor(0.0)
@@ -350,7 +359,7 @@ def test_constant_offset():
     t_0 = torch.tensor(0.5)
     d_k = torch.zeros(5)
 
-    result = monotonic_basis_full(x, c_0, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
+    result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
 
     # Expected: ∫[1,x] exp(k) dt = exp(k)·(x - 1)
     expected = torch.exp(torch.tensor(k)) * (x - 1)
@@ -386,6 +395,7 @@ def test_combined_affine():
 
     # Parameters
     c_0 = torch.tensor(slope_from_c0)
+    c_1 = torch.tensor(1.0)
     a = torch.tensor(0.0)
     b = torch.tensor(log_slope)  # exp(b) = slope_from_integral
     c = torch.tensor(0.0)
@@ -396,7 +406,7 @@ def test_combined_affine():
     t_0 = torch.tensor(0.5)
     d_k = torch.zeros(5)
 
-    result = monotonic_basis_full(x, c_0, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
+    result = monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, d_k, num_integration_points=100)
 
     # Expected: 3x + 2(x-1) = 5x - 2
     total_slope = slope_from_c0 + slope_from_integral

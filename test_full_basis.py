@@ -2,8 +2,9 @@
 
 This verifies:
 1. Numerical integration is accurate
-2. PyTorch autograd correctly computes derivatives: df/dx = c₀ + g(x)
+2. PyTorch autograd correctly computes derivatives: df/dx = c₀ + c₁·g(x)
 3. log(x) can be exactly represented via integration
+4. c₁ parameter provides independent scaling of integral term
 
 Run: uv run python test_full_basis.py
 """
@@ -23,6 +24,7 @@ def test_integration_accuracy():
     x = torch.tensor([1.5, 2.0, 3.0, 5.0], requires_grad=True)
 
     c_0 = torch.tensor(0.0)
+    c_1 = torch.tensor(1.0)
     a = torch.tensor(-1.0)  # Makes g(t) = 1/t
     b = torch.tensor(0.0)
     c = torch.tensor(0.0)
@@ -35,7 +37,7 @@ def test_integration_accuracy():
 
     # Compute full basis
     f_x = monotonic_basis_full(
-        x, c_0, a, b, c, d, e, g_param, h, t_0, d_k,
+        x, c_0, c_1, a, b, c, d, e, g_param, h, t_0, d_k,
         num_integration_points=100  # More points for accuracy
     )
 
@@ -63,11 +65,12 @@ def test_derivative_relationship():
     print("Test 2: Derivative Relationship via Autograd")
     print("="*70)
 
-    # Test case: f(x) = c₀·x + ∫[1,x] 1/t dt = c₀·x + log(x)
-    # Then: f'(x) = c₀ + 1/x
+    # Test case: f(x) = c₀·x + c₁·∫[1,x] 1/t dt = c₀·x + c₁·log(x)
+    # Then: f'(x) = c₀ + c₁·(1/x)
     x = torch.tensor([1.5, 2.0, 3.0], requires_grad=True)
 
     c_0 = torch.tensor(2.0)  # Non-zero linear coefficient
+    c_1 = torch.tensor(1.5)  # Non-zero integral coefficient
     a = torch.tensor(-1.0)   # Makes g(t) = 1/t
     b = torch.tensor(0.0)
     c = torch.tensor(0.0)
@@ -80,7 +83,7 @@ def test_derivative_relationship():
 
     # Compute full basis
     f_x = monotonic_basis_full(
-        x, c_0, a, b, c, d, e, g_param, h, t_0, d_k,
+        x, c_0, c_1, a, b, c, d, e, g_param, h, t_0, d_k,
         num_integration_points=100
     )
 
@@ -93,20 +96,20 @@ def test_derivative_relationship():
         create_graph=False
     )[0]
 
-    # Expected derivative: f'(x) = c₀ + g(x) = c₀ + 1/x
-    g_x = monotonic_basis_integrand(x, c_0, a, b, c, d, e, g_param, h, t_0, d_k)
-    expected_gradient = c_0 + g_x
+    # Expected derivative: f'(x) = c₀ + c₁·g(x) = c₀ + c₁·(1/x)
+    g_x = monotonic_basis_integrand(x, c_0, c_1, a, b, c, d, e, g_param, h, t_0, d_k)
+    expected_gradient = c_0 + c_1 * g_x
 
     error = torch.abs(gradients - expected_gradient).max().item()
 
     print(f"Input x: {x.detach().numpy()}")
-    print(f"f(x) = {c_0.item():.1f}·x + log(x): {f_x.detach().numpy()}")
-    print(f"\nExpected gradient (c₀ + 1/x): {expected_gradient.detach().numpy()}")
+    print(f"f(x) = {c_0.item():.1f}·x + {c_1.item():.1f}·log(x): {f_x.detach().numpy()}")
+    print(f"\nExpected gradient (c₀ + c₁·(1/x)): {expected_gradient.detach().numpy()}")
     print(f"Autograd gradient: {gradients.detach().numpy()}")
     print(f"Max error: {error:.6f}")
 
     if error < 0.01:
-        print("✅ PASS: Autograd correctly computes df/dx = c₀ + g(x)")
+        print("✅ PASS: Autograd correctly computes df/dx = c₀ + c₁·g(x)")
         return True
     else:
         print(f"❌ FAIL: Error {error:.6f} too large")
@@ -122,8 +125,9 @@ def test_logarithm_exact():
     x = torch.linspace(1.1, 5.0, 20)
 
     # Parameters for f(x) = log(x)
-    # g(t) = 1/t via a=-1, then integrate
-    c_0 = torch.tensor(0.0)
+    # g(t) = 1/t via a=-1, then integrate with c_1=1
+    c_0 = torch.tensor(0.0)  # No linear term
+    c_1 = torch.tensor(1.0)  # Integral scaling = 1
     a = torch.tensor(-1.0)
     b = torch.tensor(0.0)
     c = torch.tensor(0.0)
@@ -136,7 +140,7 @@ def test_logarithm_exact():
 
     # Compute full basis
     f_x = monotonic_basis_full(
-        x, c_0, a, b, c, d, e, g_param, h, t_0, d_k,
+        x, c_0, c_1, a, b, c, d, e, g_param, h, t_0, d_k,
         num_integration_points=100
     )
 
@@ -169,9 +173,10 @@ def test_negative_log_for_pudra():
     x = torch.tensor([0.1, 0.3, 0.5, 0.7, 0.9])
 
     # Parameters for f(x) = -log(x)
-    # Use negative c_0 to flip the sign
-    c_0 = torch.tensor(0.0)  # No linear term
-    a = torch.tensor(-1.0)   # g(t) = 1/t, integrates to log(x)
+    # Use negative c_1 to flip the sign of the integral
+    c_0 = torch.tensor(0.0)   # No linear term
+    c_1 = torch.tensor(-1.0)  # Negative integral coefficient gives -log(x)
+    a = torch.tensor(-1.0)    # g(t) = 1/t, integrates to log(x)
     b = torch.tensor(0.0)
     c = torch.tensor(0.0)
     d = torch.tensor(0.0)
@@ -181,14 +186,11 @@ def test_negative_log_for_pudra():
     t_0 = torch.tensor(0.5)
     d_k = torch.zeros(5)
 
-    # Compute log(x)
-    log_x = monotonic_basis_full(
-        x, c_0, a, b, c, d, e, g_param, h, t_0, d_k,
+    # Compute -log(x) directly
+    neg_log_x = monotonic_basis_full(
+        x, c_0, c_1, a, b, c, d, e, g_param, h, t_0, d_k,
         num_integration_points=100
     )
-
-    # For -log(x), multiply by -1 (this would be done in the loss via learned params)
-    neg_log_x = -log_x
     expected = -torch.log(x)
 
     error = torch.abs(neg_log_x - expected).max().item()
@@ -242,9 +244,10 @@ def main():
     print("\n" + "="*70)
     print("CONCLUSION")
     print("="*70)
-    print("\nThe full basis with integration now:")
+    print("\nThe full basis f(x) = c₀·x + c₁·∫[1,x] g(t) dt now:")
     print("  • EXACTLY represents log(x) via ∫[1,x] 1/t dt")
-    print("  • Has correct derivatives: f'(x) = c₀ + g(x)")
+    print("  • Has correct derivatives: f'(x) = c₀ + c₁·g(x)")
+    print("  • Independent control via c₀ (linear) and c₁ (integral) scaling")
     print("  • Enables exact representation of PUDRa: -log(p) + p")
     print("  • Maintains differentiability through PyTorch autograd")
     print("="*70 + "\n")

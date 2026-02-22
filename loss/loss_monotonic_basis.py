@@ -53,12 +53,12 @@ class MonotonicBasisLoss(nn.Module):
 
     Parameters:
         If use_prior=False:
-            - baseline_params: shape [num_repetitions * 7, 9]
+            - baseline_params: shape [num_repetitions * 7, 10]  (c_0, c_1, a, b, c, d, e, g, h, t_0)
             - fourier_params: shape [num_repetitions * 7, num_fourier]
 
         If use_prior=True:
-            - baseline_alphas: shape [num_repetitions * 7, 9]
-            - baseline_betas: shape [num_repetitions * 7, 9]
+            - baseline_alphas: shape [num_repetitions * 7, 10]  (c_0, c_1, a, b, c, d, e, g, h, t_0)
+            - baseline_betas: shape [num_repetitions * 7, 10]
             - fourier_alphas: shape [num_repetitions * 7, num_fourier]
             - fourier_betas: shape [num_repetitions * 7, num_fourier]
             Then: param = alpha + beta * prior
@@ -114,8 +114,8 @@ class MonotonicBasisLoss(nn.Module):
         # Each repetition has 7 functions: 1 outer + 6 inner
         self.total_basis_funcs = num_repetitions * 7
 
-        # Baseline parameters: c_0, a, b, c, d, e, g, h, t_0 (9 total)
-        num_baseline = 9
+        # Baseline parameters: c_0, c_1, a, b, c, d, e, g, h, t_0 (10 total)
+        num_baseline = 10
 
         if use_prior:
             # Prior-conditioned: param = alpha + beta * prior
@@ -194,8 +194,8 @@ class MonotonicBasisLoss(nn.Module):
     def apply_basis(self, x: torch.Tensor, idx: int) -> torch.Tensor:
         """Apply full basis function at index idx to input x.
 
-        Computes f(x) = c₀·x + ∫[1,x] g(t) dt where g is the integrand.
-        The derivative is f'(x) = c₀ + g(x), handled automatically by PyTorch autograd.
+        Computes f(x) = c₀·x + c₁·∫[1,x] g(t) dt where g is the integrand.
+        The derivative is f'(x) = c₀ + c₁·g(x), handled automatically by PyTorch autograd.
 
         Args:
             x: Input tensor, shape [N] or [N, ...] or scalar
@@ -208,16 +208,17 @@ class MonotonicBasisLoss(nn.Module):
 
         # Extract individual baseline parameters
         c_0 = baseline[0]
-        a = baseline[1]
-        b = baseline[2]
-        c = baseline[3]
-        d = baseline[4]
-        e = baseline[5]
-        g = baseline[6]
-        h = baseline[7]
-        t_0 = baseline[8]
+        c_1 = baseline[1]
+        a = baseline[2]
+        b = baseline[3]
+        c = baseline[4]
+        d = baseline[5]
+        e = baseline[6]
+        g = baseline[7]
+        h = baseline[8]
+        t_0 = baseline[9]
 
-        return monotonic_basis_full(x, c_0, a, b, c, d, e, g, h, t_0, fourier)
+        return monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, fourier)
 
     def forward(
         self,
