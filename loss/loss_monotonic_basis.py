@@ -90,6 +90,8 @@ class MonotonicBasisLoss(nn.Module):
         prior: float = 0.5,
         oracle_mode: bool = False,
         init_scale: float = 0.01,
+        l1_weight: float = 1e-4,
+        l2_weight: float = 1e-3,
     ):
         """Initialize learnable monotonic basis loss.
 
@@ -100,6 +102,8 @@ class MonotonicBasisLoss(nn.Module):
             prior: Class prior value (only used if use_prior=True)
             oracle_mode: If True, expects binary labels; if False, PU labels
             init_scale: Initialization scale for random parameters
+            l1_weight: L1 regularization weight for baseline parameters (sparsity)
+            l2_weight: L2 regularization weight for Fourier parameters (stability)
         """
         super().__init__()
 
@@ -108,6 +112,8 @@ class MonotonicBasisLoss(nn.Module):
         self.use_prior = use_prior
         self.oracle_mode = oracle_mode
         self.init_scale = init_scale
+        self.l1_weight = l1_weight
+        self.l2_weight = l2_weight
         self.name = "monotonic_basis"
 
         # Total number of basis functions
@@ -383,3 +389,40 @@ class MonotonicBasisLoss(nn.Module):
             "num_repetitions": self.num_repetitions,
             "use_prior": self.use_prior,
         }
+
+    def compute_regularization(self) -> torch.Tensor:
+        """Compute L1 (baseline) + L2 (Fourier) regularization.
+
+        L1 on baseline parameters encourages sparsity (many params → 0).
+        L2 on Fourier parameters prevents spectral coefficient explosion.
+
+        Returns:
+            Scalar regularization loss
+
+        Examples:
+            >>> loss_fn = MonotonicBasisLoss(l1_weight=1e-4, l2_weight=1e-3)
+            >>> reg_loss = loss_fn.compute_regularization()
+            >>> total_loss = task_loss + reg_loss
+        """
+        # Collect baseline and Fourier parameters
+        if self.use_prior:
+            # Regularize both alpha and beta for prior conditioning
+            baseline_params = torch.cat([
+                self.baseline_alphas.view(-1),
+                self.baseline_betas.view(-1)
+            ])
+            fourier_params = torch.cat([
+                self.fourier_alphas.view(-1),
+                self.fourier_betas.view(-1)
+            ])
+        else:
+            baseline_params = self.baseline_params.view(-1)
+            fourier_params = self.fourier_params.view(-1)
+
+        # L1 on baseline (sparsity)
+        l1_reg = self.l1_weight * torch.abs(baseline_params).sum()
+
+        # L2 on Fourier (stability)
+        l2_reg = self.l2_weight * (fourier_params ** 2).sum()
+
+        return l1_reg + l2_reg

@@ -1,0 +1,42 @@
+# Full task split for testing ALL dataset types after refactoring
+# Tests that the refactored checkpoint initialization works for image, tabular, and text datasets
+
+training_tasks:
+  # Image datasets
+  - dataset: mnist
+    c_value: 0.5
+    prior: 0.5
+    data_type: image
+
+  - dataset: fashionmnist
+    c_value: 0.5
+    prior: 0.5
+    data_type: image
+
+  # Tabular datasets (previously failed with "optimizer got an empty parameter list")
+  - dataset: mushrooms
+    c_value: 0.5
+    prior: 0.5
+    data_type: tabular
+
+  - dataset: spambase
+    c_value: 0.5
+    prior: 0.5
+    data_type: tabular
+
+  # Text datasets (previously failed)
+  - dataset: 20news
+    c_value: 0.5
+    prior: 0.5
+    data_type: text
+
+  - dataset: imdb
+    c_value: 0.5
+    prior: 0.5
+    data_type: text
+
+test_tasks:
+  - dataset: cifar10
+    c_value: 0.5
+    prior: 0.5
+    data_type: image

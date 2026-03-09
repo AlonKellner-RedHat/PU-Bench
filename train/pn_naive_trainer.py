@@ -67,7 +67,7 @@ class PNNaiveTrainer(BaseTrainer):
 
             # Zero gradients, perform a forward pass, and calculate loss
             self.optimizer.zero_grad()
-            outputs = self.model(features).squeeze()
+            outputs = self.model(features).view(-1)
             loss = self.criterion(outputs, naive_labels)
 
             # Perform a backward pass and update weights

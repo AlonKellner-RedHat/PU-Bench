@@ -1,0 +1,19 @@
+dataset_class: 20News
+data_dir: ./datasets
+random_seeds: [42]
+
+c_values: [0.5]
+scenarios: [case-control]
+selection_strategies: ["random"]
+
+val_ratio: 0.1
+target_prevalence: 0.5
+with_replacement: true
+also_print_dataset_stats: false
+
+sbert_model_name: all-MiniLM-L6-v2
+sbert_embeddings_path: ./scripts/embeddings/20news_sbert_embeddings.npz
+
+label_scheme:
+  positive_classes: [alt, comp, misc, rec]
+  negative_classes: [sci, soc, talk]

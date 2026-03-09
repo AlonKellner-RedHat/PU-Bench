@@ -1,0 +1,150 @@
+monotonic_basis_meta:
+  # === Meta-Learning Setup ===
+  meta_lr: 0.0001                     # Loss parameter learning rate
+  inner_lr: 0.001                     # Inner loop model learning rate (for K-step optimization)
+  meta_batch_size: 8                  # Checkpoints per meta-batch
+  meta_iterations: 1000               # Total meta-training iterations
+  meta_objective: "bce"               # Options: "bce", "snice", "anice"
+  K_inner_steps: 3                    # Number of inner loop gradient steps with second-order gradients
+
+  # === Regularization ===
+  l1_weight: 0.0001                   # L1 on baseline params (sparsity): 1e-4
+  l2_weight: 0.001                    # L2 on Fourier params (stability): 1e-3
+
+  # === Vmap Parallelization ===
+  use_vmap: true                      # Enable vmap-based meta-training
+  vmap_chunk_sizes:
+    LeNet: 8                          # MNIST + FashionMNIST (fast, small models)
+    MLP_Tabular: 16                   # Mushrooms + Spambase + Connect4 (very fast)
+    MLP_Text: 4                       # 20News + IMDB (medium, larger embeddings)
+    CNN_CIFAR10: 2                    # CIFAR10 (slow, won't be selected due to speed)
+    CNN_Medical: 2                    # AlzheimerMRI (won't be selected)
+  architecture_cycle_order:
+    - LeNet
+    - MLP_Tabular
+    - MLP_Text
+
+  # === Checkpoint Pool ===
+  checkpoint_pool_size: 1800          # 45 training tasks × 10 epochs × 4 seeds
+
+  # Checkpoint epochs: Include epoch 1 (very early training) to expose the loss
+  # to models at all training stages, not just mid/late training
+  checkpoint_epochs: [1, 5, 10, 15, 20, 25, 30, 35, 40, 45]
+
+  # Multiple seeds for checkpoint diversity: Different initializations lead to
+  # different training trajectories, making the learned loss more robust
+  checkpoint_seeds: [42, 123, 456, 789]
+
+  checkpoint_refresh_freq: 50         # Refresh every N iterations
+  checkpoint_refresh_percent: 10      # Replace 10% oldest
+  checkpoint_dir: "./meta_checkpoints"
+
+  # === Task Profiling ===
+  profile_tasks: true                 # Run profiling before training
+  profile_output: "./task_speeds.json"
+  task_split_file: "./task_split.yaml"
+
+  # === Training Task Selection ===
+  # These will be populated by create_balanced_split.py based on profiling
+  # MUST include at least 1 task from each data type (image, tabular, text)
+  # Balanced split: 5 datasets (2 image + 2 tabular + 1 text) × 9 configs = 45 training tasks
+  #                 4 datasets (2 image + 1 tabular + 1 text) × 9 configs = 36 test tasks
+  target_training_datasets: 5         # Target: 5 datasets for training
+  target_test_datasets: 4             # Target: 4 datasets for testing
+  training_data_type_split:
+    image: 2                          # 2 unique image datasets
+    tabular: 2                        # 2 unique tabular datasets
+    text: 1                           # 1 unique text dataset
+  test_data_type_split:
+    image: 2                          # 2 unique image datasets
+    tabular: 1                        # 1 unique tabular dataset
+    text: 1                           # 1 unique text dataset
+
+  # === Candidate Tasks for Profiling ===
+  # All datasets use same 3×3 grid: c_values × priors = 9 configs per dataset
+  # Total: 9 datasets × 9 configs = 81 tasks
+  candidate_tasks:
+    # Image datasets (4 datasets × 9 configs = 36 tasks)
+    mnist:
+      dataset_class: MNIST
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    fashionmnist:
+      dataset_class: FashionMNIST
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    cifar10:
+      dataset_class: CIFAR10
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    alzheimermri:
+      dataset_class: AlzheimerMRI
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+
+    # Tabular datasets (3 datasets × 9 configs = 27 tasks)
+    mushrooms:
+      dataset_class: Mushrooms
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    spambase:
+      dataset_class: Spambase
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    connect4:
+      dataset_class: Connect4
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+
+    # Text datasets (2 datasets × 9 configs = 18 tasks)
+    20news:
+      dataset_class: 20News
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    imdb:
+      dataset_class: IMDB
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+
+  # === Checkpoint Training (PN Naive) ===
+  checkpoint_trainer:
+    method: "pn_naive"
+    lr: 0.001
+    batch_size: 256
+    num_epochs: 40
+    # Seeds handled by checkpoint_seeds list above
+
+  # === Learned Loss Parameters ===
+  num_repetitions: 3                  # Number of repetition blocks
+  num_fourier: 16                     # 16 Fourier coefficients (not 5!)
+  use_prior: true                     # Enable prior conditioning
+  oracle_mode: false                  # false=PU mode, true=PN mode
+  init_scale: 0.01                    # Initialization scale
+
+  # === Model Training (for meta-learning) ===
+  # These are used when training models from checkpoints
+  optimizer: "adam"
+  lr: 0.0003                          # Model learning rate
+  weight_decay: 0.0001                # Model weight decay
+  batch_size: 128                     # Smaller batches for meta-learning
+
+  # === Logging and Checkpointing ===
+  log_freq: 10                        # Log every N iterations
+  save_freq: 50                       # Save loss checkpoint every N iterations
+  loss_checkpoint_dir: "./learned_losses"
+
+  # Verbose logging
+  verbose: true
+
+  # === Label Scheme ===
+  label_scheme:
+    true_positive_label: 1
+    true_negative_label: 0
+    pu_labeled_label: 1
+    pu_unlabeled_label: -1
+
+  # === Random Seed ===
+  seed: 42
+
+  # === Device ===
+  device: "auto"  # Auto-detect: MPS → CUDA → CPU

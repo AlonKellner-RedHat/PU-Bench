@@ -81,3 +81,10 @@ aclImdb/
 # Embeddings (Large precomputed files)
 scripts/embeddings/
 scripts/models/
+
+# Meta-learning checkpoints (Large files)
+meta_checkpoints/
+
+# HuggingFace and OpenML cache
+data/hf_cache/
+data/openml/

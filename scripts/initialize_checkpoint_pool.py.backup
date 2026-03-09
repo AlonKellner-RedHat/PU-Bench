@@ -1,0 +1,320 @@
+"""Initialize checkpoint pool from PN naive training.
+
+This script implements Phase 1 of the meta-learning pipeline:
+1. Loads training task split from task_split.yaml
+2. For each training task, trains a model with PN naive loss
+3. Saves checkpoints at multiple training stages (epochs 0, 1, 5, 10, 15, 20, 25, 30, 35, 40)
+4. Uses multiple random seeds for diversity (4 seeds per task)
+5. Stores all checkpoints in a CheckpointPool for meta-learning
+
+Usage:
+    python scripts/initialize_checkpoint_pool.py \\
+        --split task_split.yaml \\
+        --output ./meta_checkpoints \\
+        --epochs 0,1,5,10,15,20,25,30,35,40 \\
+        --seeds 42,123,456,789
+"""
+
+import argparse
+import sys
+from pathlib import Path
+
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import torch
+import yaml
+from tqdm import tqdm
+
+from meta_learning.checkpoint_pool import CheckpointPool, load_task_split
+from train.train_utils import prepare_loaders, select_model, set_global_seed
+
+
+def get_dataset_class(dataset: str) -> str:
+    """Convert dataset name to dataset_class format."""
+    mapping = {
+        'mnist': 'MNIST',
+        'fashionmnist': 'FashionMNIST',
+        'cifar10': 'CIFAR10',
+        'alzheimermri': 'AlzheimerMRI',
+        'mushrooms': 'Mushrooms',
+        'spambase': 'Spambase',
+        'connect4': 'Connect4',
+        '20news': '20News',
+        'imdb': 'IMDB'
+    }
+    return mapping.get(dataset, dataset.upper())
+
+
+def train_checkpoint(
+    dataset: str,
+    c_value: float,
+    prior: float,
+    seed: int,
+    target_epoch: int,
+    batch_size: int,
+    lr: float,
+    device: torch.device
+) -> torch.nn.Module:
+    """Train a single checkpoint to target_epoch with PN naive loss.
+
+    Args:
+        dataset: Dataset name (e.g., 'mnist')
+        c_value: Label noise level
+        prior: Class prior
+        seed: Random seed
+        target_epoch: Number of epochs to train (0 for random init)
+        batch_size: Training batch size
+        lr: Learning rate
+        device: Torch device
+
+    Returns:
+        Trained model
+    """
+    # Set seed
+    set_global_seed(seed)
+
+    # Get proper dataset_class name
+    dataset_class = get_dataset_class(dataset)
+
+    # Create data config
+    data_config = {
+        'dataset_class': dataset_class,
+        'c_values': [c_value],
+        'scenarios': ['case-control'],
+        'selection_strategies': ['random'],
+        'val_ratio': 0.1,
+        'target_prevalence': prior
+    }
+
+    # Prepare loaders
+    train_loader, val_loader, test_loader, actual_prior, _ = prepare_loaders(
+        dataset_name=dataset,
+        data_config=data_config,
+        batch_size=batch_size,
+        method='pn_naive'
+    )
+
+    # Create model
+    model_params = {
+        'dataset_class': dataset_class,
+        'optimizer': 'adam',
+        'lr': lr,
+        'weight_decay': 1e-4
+    }
+    model = select_model('pn_naive', model_params, prior=actual_prior)
+    model = model.to(device)
+
+    # If target_epoch is 0, return random init
+    if target_epoch == 0:
+        return model
+
+    # Otherwise, train to target_epoch with naive PN approach
+    criterion = torch.nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
+
+    for epoch in range(target_epoch):
+        model.train()
+        for batch in train_loader:
+            # PUDataset yields: features, pu_labels, true_labels, idx, pseudo
+            features, pu_labels, _, _, _ = batch
+            features = features.to(device)
+
+            # Convert PU labels to naive binary labels:
+            # 1 (labeled positive) → 1.0
+            # -1 (unlabeled) → 0.0
+            naive_labels = (pu_labels == 1).float().to(device)
+
+            optimizer.zero_grad()
+            outputs = model(features).view(-1)
+            loss = criterion(outputs, naive_labels)
+            loss.backward()
+            optimizer.step()
+
+    return model
+
+
+def initialize_pool(
+    split_file: str,
+    output_dir: str,
+    checkpoint_epochs: list,
+    checkpoint_seeds: list,
+    batch_size: int = 256,
+    lr: float = 0.001,
+    device: str = 'cuda'
+):
+    """Initialize checkpoint pool from training tasks.
+
+    Args:
+        split_file: Path to task_split.yaml
+        output_dir: Directory to save checkpoint pool
+        checkpoint_epochs: List of epochs to save checkpoints
+        checkpoint_seeds: List of random seeds for diversity
+        batch_size: Training batch size
+        lr: Learning rate
+        device: Device string ('cuda' or 'cpu')
+    """
+    # Load task split
+    training_tasks, test_tasks = load_task_split(split_file)
+
+    print("=" * 70)
+    print("CHECKPOINT POOL INITIALIZATION")
+    print("=" * 70)
+    print()
+    print(f"Training tasks: {len(training_tasks)}")
+    print(f"Test tasks (held out): {len(test_tasks)}")
+    print(f"Checkpoint epochs: {checkpoint_epochs}")
+    print(f"Checkpoint seeds: {checkpoint_seeds}")
+    print(f"Total checkpoints: {len(training_tasks) * len(checkpoint_epochs) * len(checkpoint_seeds)}")
+    print()
+
+    # Create checkpoint pool
+    pool = CheckpointPool(output_dir)
+
+    # Setup device - use same logic as base_trainer.py
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif torch.backends.mps.is_available():
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
+    print(f"Using device: {device}")
+    print()
+
+    # Process each training task
+    total_tasks = len(training_tasks) * len(checkpoint_seeds)
+    task_idx = 0
+
+    for task_config in training_tasks:
+        dataset = task_config['dataset']
+        c_value = task_config['c_value']
+        prior = task_config['prior']
+
+        print(f"Dataset: {dataset} | c={c_value} | prior={prior}")
+        print()
+
+        for seed in checkpoint_seeds:
+            task_idx += 1
+            task_id = f"{dataset}_c{c_value:.1f}_prior{prior:.1f}_seed{seed}"
+
+            print(f"  [{task_idx}/{total_tasks}] Task: {task_id}")
+
+            # Train checkpoints for all epochs
+            for epoch in tqdm(checkpoint_epochs, desc=f"    Epochs", leave=False):
+                # Train to target epoch
+                model = train_checkpoint(
+                    dataset=dataset,
+                    c_value=c_value,
+                    prior=prior,
+                    seed=seed,
+                    target_epoch=epoch,
+                    batch_size=batch_size,
+                    lr=lr,
+                    device=device
+                )
+
+                # Create checkpoint
+                checkpoint = {
+                    'task_id': task_id,
+                    'epoch': epoch,
+                    'seed': seed,
+                    'model_state': model.state_dict(),
+                    'dataset': dataset,
+                    'c_value': c_value,
+                    'prior': prior,
+                    'source': 'pn_naive',
+                    'created_at': 0
+                }
+
+                # Add to pool
+                pool.add_checkpoint(checkpoint)
+
+            print(f"    Completed {len(checkpoint_epochs)} checkpoints for {task_id}")
+            print()
+
+        print()
+
+    # Print statistics
+    pool.print_statistics()
+
+    # Save to disk
+    print()
+    pool.save_to_disk()
+    print()
+
+    print("=" * 70)
+    print("INITIALIZATION COMPLETE")
+    print("=" * 70)
+    print(f"Total checkpoints created: {len(pool.checkpoints)}")
+    print(f"Saved to: {output_dir}")
+    print()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Initialize checkpoint pool from PN naive training"
+    )
+    parser.add_argument(
+        '--split',
+        type=str,
+        default='task_split.yaml',
+        help='Path to task split YAML file'
+    )
+    parser.add_argument(
+        '--output',
+        type=str,
+        default='./meta_checkpoints',
+        help='Output directory for checkpoint pool'
+    )
+    parser.add_argument(
+        '--epochs',
+        type=str,
+        default='0,1,5,10,15,20,25,30,35,40',
+        help='Comma-separated list of epochs to save checkpoints'
+    )
+    parser.add_argument(
+        '--seeds',
+        type=str,
+        default='42,123,456,789',
+        help='Comma-separated list of random seeds'
+    )
+    parser.add_argument(
+        '--batch-size',
+        type=int,
+        default=256,
+        help='Training batch size'
+    )
+    parser.add_argument(
+        '--lr',
+        type=float,
+        default=0.001,
+        help='Learning rate'
+    )
+    parser.add_argument(
+        '--device',
+        type=str,
+        default='cuda',
+        choices=['cuda', 'cpu'],
+        help='Device to use for training'
+    )
+
+    args = parser.parse_args()
+
+    # Parse epochs and seeds
+    checkpoint_epochs = [int(e) for e in args.epochs.split(',')]
+    checkpoint_seeds = [int(s) for s in args.seeds.split(',')]
+
+    # Initialize pool
+    initialize_pool(
+        split_file=args.split,
+        output_dir=args.output,
+        checkpoint_epochs=checkpoint_epochs,
+        checkpoint_seeds=checkpoint_seeds,
+        batch_size=args.batch_size,
+        lr=args.lr,
+        device=args.device
+    )
+
+
+if __name__ == '__main__':
+    main()
