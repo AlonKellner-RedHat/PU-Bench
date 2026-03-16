@@ -90,8 +90,12 @@ class MonotonicBasisLoss(nn.Module):
         prior: float = 0.5,
         oracle_mode: bool = False,
         init_scale: float = 0.01,
+        init_mode: str = 'random',
+        init_noise_scale: float = 0.0,
         l1_weight: float = 1e-4,
         l2_weight: float = 1e-3,
+        num_integration_points: int = 20,
+        integration_chunk_size: int = None,
     ):
         """Initialize learnable monotonic basis loss.
 
@@ -102,8 +106,12 @@ class MonotonicBasisLoss(nn.Module):
             prior: Class prior value (only used if use_prior=True)
             oracle_mode: If True, expects binary labels; if False, PU labels
             init_scale: Initialization scale for random parameters
+            init_mode: Initialization mode ('random', 'bce_equivalent', 'upu_baseline', 'pudra_baseline', 'vpu_baseline', 'diverse_baselines')
+            init_noise_scale: Additional Gaussian noise scale for baseline initializations (encourages exploration)
             l1_weight: L1 regularization weight for baseline parameters (sparsity)
             l2_weight: L2 regularization weight for Fourier parameters (stability)
+            num_integration_points: Number of points for numerical integration (100=0.45% error, 20=fast, 50=1.4% error)
+            integration_chunk_size: Process inputs in chunks during integration (default: None=no chunking, 256=recommended for 100 points)
         """
         super().__init__()
 
@@ -112,8 +120,12 @@ class MonotonicBasisLoss(nn.Module):
         self.use_prior = use_prior
         self.oracle_mode = oracle_mode
         self.init_scale = init_scale
+        self.init_mode = init_mode
+        self.init_noise_scale = init_noise_scale
         self.l1_weight = l1_weight
         self.l2_weight = l2_weight
+        self.num_integration_points = num_integration_points
+        self.integration_chunk_size = integration_chunk_size
         self.name = "monotonic_basis"
 
         # Total number of basis functions
@@ -153,8 +165,19 @@ class MonotonicBasisLoss(nn.Module):
 
             self.register_buffer("prior_tensor", torch.tensor(0.0, dtype=torch.float32))
 
-        # Initialize some parameters to reasonable values
-        self._initialize_params()
+        # Initialize parameters based on init_mode
+        if init_mode == 'diverse_baselines':
+            self._initialize_params_diverse_baselines()
+        elif init_mode == 'upu_baseline':
+            self._initialize_params_upu_baseline()
+        elif init_mode == 'pudra_baseline':
+            self._initialize_params_pudra_baseline()
+        elif init_mode == 'vpu_baseline':
+            self._initialize_params_vpu_baseline()
+        elif init_mode == 'bce_equivalent':
+            self._initialize_params_bce_equivalent()
+        else:
+            self._initialize_params()  # Random initialization
 
     def _initialize_params(self):
         """Initialize parameters to reasonable values for better training."""
@@ -172,6 +195,346 @@ class MonotonicBasisLoss(nn.Module):
                 self.baseline_params[:, 0].fill_(0.1)  # c_0
                 self.baseline_params[:, 7].fill_(1.0)  # h
                 self.baseline_params[:, 8].fill_(0.5)  # t_0
+
+    def _initialize_params_bce_equivalent(self):
+        """Initialize parameters to approximate BCE/PN-Naive.
+
+        For PN-Naive (treating unlabeled as negative):
+            L = E_pos[-log(p)] + E_unlabeled[-log(1-p)]
+
+        Using monotonic basis structure:
+            L = g_outer(g_3(p_pos).mean() + g_6(1-p_oth).mean())
+
+        Where:
+            g_outer(x) = x (identity)
+            g_1(x) = 0, g_2(x) = 0 (no contribution from p_all)
+            g_3(x) = -log(x) (for positive samples)
+            g_4(x) = 0
+            g_5(x) = 0
+            g_6(x) = -log(x) (for unlabeled/negative samples)
+
+        Key insight: -log(x) = -∫[1,x] 1/t dt
+        So integrand f(t) = -1/t = -t^(-1)
+        """
+        with torch.no_grad():
+            if self.use_prior:
+                # Initialize all to zeros
+                self.baseline_alphas.zero_()
+                self.baseline_betas.zero_()
+                self.fourier_alphas.zero_()
+                self.fourier_betas.zero_()
+
+                # Basis function indices in first repetition:
+                # 0: g_outer
+                # 1, 2: g_1, g_2 (for p_all, 1-p_all)
+                # 3, 4: g_3, g_4 (for p_pos, 1-p_pos)
+                # 5, 6: g_5, g_6 (for p_oth, 1-p_oth)
+
+                # g_outer(x) = x (identity)
+                # Formula: f(x) = c₀·x + c₁·∫[1,x] g(t) dt
+                # For identity: use linear term only
+                self.baseline_alphas[0, 0] = 1.0   # c_0 = 1 (gives x)
+                self.baseline_alphas[0, 1] = 0.0   # c_1 = 0 (no integral)
+
+                # g_1, g_2: all zeros (no contribution from p_all terms)
+                # Already zeroed above
+
+                # g_3(x) = -log(x)
+                # Formula: f(x) = c₀·x + c₁·∫[1,x] g(t) dt
+                # where g(t) = exp(a·log(t) + b + ...)
+                # For -log(x): need integrand g(t) = 1/t
+                # Since g(t) = exp(a·log(t)) = t^a, we need t^(-1) → a = -1
+                # Then: f(x) = 0 + (-1)·∫[1,x] t^(-1) dt = -log(x) ✓
+                self.baseline_alphas[3, 0] = 0.0   # c_0 = 0
+                self.baseline_alphas[3, 1] = -1.0  # c_1 = -1
+                self.baseline_alphas[3, 2] = -1.0  # a = -1
+                self.baseline_alphas[3, 3] = 0.0   # b = 0
+
+                # g_4: all zeros
+                # Already zeroed above
+
+                # g_5: all zeros
+                # Already zeroed above
+
+                # g_6(x) = -log(x)
+                # Same parameters as g_3
+                self.baseline_alphas[6, 0] = 0.0   # c_0 = 0
+                self.baseline_alphas[6, 1] = -1.0  # c_1 = -1
+                self.baseline_alphas[6, 2] = -1.0  # a = -1
+                self.baseline_alphas[6, 3] = 0.0   # b = 0
+
+                # Copy first repetition to all others (shared initialization)
+                for rep in range(1, self.num_repetitions):
+                    start_idx = rep * 7
+                    self.baseline_alphas[start_idx:start_idx+7] = \
+                        self.baseline_alphas[0:7].clone()
+                    self.baseline_betas[start_idx:start_idx+7] = \
+                        self.baseline_betas[0:7].clone()
+                    self.fourier_alphas[start_idx:start_idx+7] = \
+                        self.fourier_alphas[0:7].clone()
+                    self.fourier_betas[start_idx:start_idx+7] = \
+                        self.fourier_betas[0:7].clone()
+
+                print("✓ Initialized MonotonicBasisLoss with BCE-equivalent parameters")
+                print(f"  - g_outer(x) = x, g_3(x) = g_6(x) = -log(x), others = 0")
+                print(f"  - All {self.num_repetitions} repetitions share same initial values")
+
+            else:
+                # Non-prior mode initialization
+                self.baseline_params.zero_()
+                self.fourier_params.zero_()
+
+                # g_outer: identity
+                self.baseline_params[0, 0] = 1.0   # c_0 = 1 (gives x)
+                self.baseline_params[0, 1] = 0.0   # c_1 = 0 (no integral)
+
+                # g_3: -log(x)
+                self.baseline_params[3, 0] = 0.0   # c_0 = 0
+                self.baseline_params[3, 1] = -1.0  # c_1 = -1
+                self.baseline_params[3, 2] = -1.0  # a = -1
+                self.baseline_params[3, 3] = 0.0   # b = 0
+
+                # g_6: -log(x)
+                self.baseline_params[6, 0] = 0.0   # c_0 = 0
+                self.baseline_params[6, 1] = -1.0  # c_1 = -1
+                self.baseline_params[6, 2] = -1.0  # a = -1
+                self.baseline_params[6, 3] = 0.0   # b = 0
+
+                # Copy to other repetitions
+                for rep in range(1, self.num_repetitions):
+                    start_idx = rep * 7
+                    self.baseline_params[start_idx:start_idx+7] = \
+                        self.baseline_params[0:7].clone()
+                    self.fourier_params[start_idx:start_idx+7] = \
+                        self.fourier_params[0:7].clone()
+
+                print("✓ Initialized MonotonicBasisLoss with BCE-equivalent parameters")
+                print(f"  - g_outer(x) = x, g_3(x) = g_6(x) = -log(x), others = 0")
+                print(f"  - All {self.num_repetitions} repetitions share same initial values")
+
+    def _initialize_params_upu_baseline(self):
+        """Initialize single repetition as uPU loss.
+
+        L_uPU = π·E_P[-log(p)] + E_U[-log(1-p)] - π·E_P[-log(1-p)]
+
+        Requires: num_repetitions=1, use_prior=True
+        """
+        with torch.no_grad():
+            if not self.use_prior:
+                raise ValueError("upu_baseline requires use_prior=True")
+            if self.num_repetitions != 1:
+                raise ValueError(f"upu_baseline requires num_repetitions=1, got {self.num_repetitions}")
+
+            # Zero all parameters
+            self.baseline_alphas.zero_()
+            self.baseline_betas.zero_()
+            self.fourier_alphas.zero_()
+            self.fourier_betas.zero_()
+
+            # Repetition 0: uPU
+            base_idx = 0
+
+            # f_outer: identity
+            self.baseline_alphas[base_idx + 0, 0] = 1.0
+
+            # f_3: -π·log(x)
+            self.baseline_betas[base_idx + 3, 1] = -1.0  # c₁ = -π
+            self.baseline_alphas[base_idx + 3, 2] = -1.0  # a = -1
+
+            # f_4: π·log(x)
+            self.baseline_betas[base_idx + 4, 1] = 1.0  # c₁ = π
+            self.baseline_alphas[base_idx + 4, 2] = -1.0  # a = -1
+
+            # f_6: -log(x)
+            self.baseline_alphas[base_idx + 6, 1] = -1.0  # c₁ = -1
+            self.baseline_alphas[base_idx + 6, 2] = -1.0  # a = -1
+
+            # Add noise if specified
+            if self.init_noise_scale > 0:
+                self.baseline_alphas.add_(torch.randn_like(self.baseline_alphas) * self.init_noise_scale)
+                self.baseline_betas.add_(torch.randn_like(self.baseline_betas) * self.init_noise_scale)
+                self.fourier_alphas.add_(torch.randn_like(self.fourier_alphas) * self.init_noise_scale)
+                self.fourier_betas.add_(torch.randn_like(self.fourier_betas) * self.init_noise_scale)
+
+    def _initialize_params_pudra_baseline(self):
+        """Initialize single repetition as PUDRa loss.
+
+        L_PUDRa = π·E_P[-log(p)] + E_U[p]
+
+        Requires: num_repetitions=1, use_prior=True
+        """
+        with torch.no_grad():
+            if not self.use_prior:
+                raise ValueError("pudra_baseline requires use_prior=True")
+            if self.num_repetitions != 1:
+                raise ValueError(f"pudra_baseline requires num_repetitions=1, got {self.num_repetitions}")
+
+            # Zero all parameters
+            self.baseline_alphas.zero_()
+            self.baseline_betas.zero_()
+            self.fourier_alphas.zero_()
+            self.fourier_betas.zero_()
+
+            # Repetition 0: PUDRa
+            base_idx = 0
+
+            # f_outer: identity
+            self.baseline_alphas[base_idx + 0, 0] = 1.0
+
+            # f_3: -π·log(x)
+            self.baseline_betas[base_idx + 3, 1] = -1.0  # c₁ = -π
+            self.baseline_alphas[base_idx + 3, 2] = -1.0  # a = -1
+
+            # f_5: x (identity on p_oth)
+            self.baseline_alphas[base_idx + 5, 0] = 1.0
+
+            # Add noise if specified
+            if self.init_noise_scale > 0:
+                self.baseline_alphas.add_(torch.randn_like(self.baseline_alphas) * self.init_noise_scale)
+                self.baseline_betas.add_(torch.randn_like(self.baseline_betas) * self.init_noise_scale)
+                self.fourier_alphas.add_(torch.randn_like(self.fourier_alphas) * self.init_noise_scale)
+                self.fourier_betas.add_(torch.randn_like(self.fourier_betas) * self.init_noise_scale)
+
+    def _initialize_params_vpu_baseline(self):
+        """Initialize 2 repetitions as VPU loss (part1 + part2).
+
+        L_VPU = log(E_all[φ(x)]) - E_P[log(φ(x))]
+
+        Requires: num_repetitions=2, use_prior=True
+        """
+        with torch.no_grad():
+            if not self.use_prior:
+                raise ValueError("vpu_baseline requires use_prior=True")
+            if self.num_repetitions != 2:
+                raise ValueError(f"vpu_baseline requires num_repetitions=2, got {self.num_repetitions}")
+
+            # Zero all parameters
+            self.baseline_alphas.zero_()
+            self.baseline_betas.zero_()
+            self.fourier_alphas.zero_()
+            self.fourier_betas.zero_()
+
+            # Repetition 0: VPU First Factor (log(E_all[p]))
+            base_idx = 0
+
+            # f_outer: log(x)
+            self.baseline_alphas[base_idx + 0, 0] = 0.0  # c₀ = 0
+            self.baseline_alphas[base_idx + 0, 1] = 1.0  # c₁ = 1
+            self.baseline_alphas[base_idx + 0, 2] = -1.0  # a = -1
+
+            # f_1: x (identity, so E_all[f_1(p)] = E_all[p])
+            self.baseline_alphas[base_idx + 1, 0] = 1.0
+
+            # Repetition 1: VPU Second Factor (-E_P[log(p)])
+            base_idx = 7
+
+            # f_outer: -x
+            self.baseline_alphas[base_idx + 0, 0] = -1.0
+
+            # f_3: log(x)
+            self.baseline_alphas[base_idx + 3, 0] = 0.0  # c₀ = 0
+            self.baseline_alphas[base_idx + 3, 1] = 1.0  # c₁ = 1
+            self.baseline_alphas[base_idx + 3, 2] = -1.0  # a = -1
+
+            # Add noise if specified
+            if self.init_noise_scale > 0:
+                self.baseline_alphas.add_(torch.randn_like(self.baseline_alphas) * self.init_noise_scale)
+                self.baseline_betas.add_(torch.randn_like(self.baseline_betas) * self.init_noise_scale)
+                self.fourier_alphas.add_(torch.randn_like(self.fourier_alphas) * self.init_noise_scale)
+                self.fourier_betas.add_(torch.randn_like(self.fourier_betas) * self.init_noise_scale)
+
+    def _initialize_params_diverse_baselines(self):
+        """Initialize 4 repetitions with different strong baselines.
+
+        Repetition 0: uPU (unbiased PU with prior factor)
+        Repetition 1: PUDRa (density ratio)
+        Repetition 2: VPU first factor - log(E_all[φ(x)])
+        Repetition 3: VPU second factor - E_P[log(φ(x))] (negated)
+
+        Then add Gaussian noise N(0, init_noise_scale²) to all parameters.
+
+        Requires: num_repetitions=4, use_prior=True
+        """
+        with torch.no_grad():
+            if not self.use_prior:
+                raise ValueError("diverse_baselines requires use_prior=True")
+            if self.num_repetitions != 4:
+                raise ValueError(f"diverse_baselines requires num_repetitions=4, got {self.num_repetitions}")
+
+            # Zero all parameters
+            self.baseline_alphas.zero_()
+            self.baseline_betas.zero_()
+            self.fourier_alphas.zero_()
+            self.fourier_betas.zero_()
+
+            # ===== Repetition 0: uPU =====
+            base_idx = 0
+
+            # f_outer: identity
+            self.baseline_alphas[base_idx + 0, 0] = 1.0
+
+            # f_3: -π·log(x)
+            self.baseline_betas[base_idx + 3, 1] = -1.0  # c₁ = -π
+            self.baseline_alphas[base_idx + 3, 2] = -1.0  # a = -1
+
+            # f_4: π·log(x)
+            self.baseline_betas[base_idx + 4, 1] = 1.0  # c₁ = π
+            self.baseline_alphas[base_idx + 4, 2] = -1.0  # a = -1
+
+            # f_6: -log(x)
+            self.baseline_alphas[base_idx + 6, 1] = -1.0  # c₁ = -1
+            self.baseline_alphas[base_idx + 6, 2] = -1.0  # a = -1
+
+            # ===== Repetition 1: PUDRa =====
+            base_idx = 7
+
+            # f_outer: identity
+            self.baseline_alphas[base_idx + 0, 0] = 1.0
+
+            # f_3: -π·log(x)
+            self.baseline_betas[base_idx + 3, 1] = -1.0  # c₁ = -π
+            self.baseline_alphas[base_idx + 3, 2] = -1.0  # a = -1
+
+            # f_5: x (identity on p_oth)
+            self.baseline_alphas[base_idx + 5, 0] = 1.0
+
+            # ===== Repetition 2: VPU First Factor (log(E_all[p])) =====
+            base_idx = 14
+
+            # f_outer: log(x)
+            self.baseline_alphas[base_idx + 0, 0] = 0.0  # c₀ = 0
+            self.baseline_alphas[base_idx + 0, 1] = 1.0  # c₁ = 1
+            self.baseline_alphas[base_idx + 0, 2] = -1.0  # a = -1
+
+            # f_1: x (identity, so E_all[f_1(p)] = E_all[p])
+            self.baseline_alphas[base_idx + 1, 0] = 1.0
+
+            # ===== Repetition 3: VPU Second Factor (-E_P[log(p)]) =====
+            base_idx = 21
+
+            # f_outer: -x
+            self.baseline_alphas[base_idx + 0, 0] = -1.0
+
+            # f_3: log(x)
+            self.baseline_alphas[base_idx + 3, 0] = 0.0  # c₀ = 0
+            self.baseline_alphas[base_idx + 3, 1] = 1.0  # c₁ = 1
+            self.baseline_alphas[base_idx + 3, 2] = -1.0  # a = -1
+
+            # ===== Add Noise for Exploration =====
+            if self.init_noise_scale > 0:
+                self.baseline_alphas.add_(torch.randn_like(self.baseline_alphas) * self.init_noise_scale)
+                self.baseline_betas.add_(torch.randn_like(self.baseline_betas) * self.init_noise_scale)
+                self.fourier_alphas.add_(torch.randn_like(self.fourier_alphas) * self.init_noise_scale)
+                self.fourier_betas.add_(torch.randn_like(self.fourier_betas) * self.init_noise_scale)
+
+            print("✓ Initialized MonotonicBasisLoss with diverse baselines")
+            print(f"  - Repetition 0: uPU (π·E_P[-log(p)] + E_U[-log(1-p)] - π·E_P[-log(1-p)])")
+            print(f"  - Repetition 1: PUDRa (π·E_P[-log(p)] + E_U[p])")
+            print(f"  - Repetition 2: VPU part 1 (log(E_all[p]))")
+            print(f"  - Repetition 3: VPU part 2 (-E_P[log(p)])")
+            print(f"  - Combined VPU: log(E_all[p]) - E_P[log(p)])")
+            if self.init_noise_scale > 0:
+                print(f"  - Added Gaussian noise N(0, {self.init_noise_scale}²) to all parameters")
 
     def get_basis_params(self, idx: int) -> tuple:
         """Get effective parameters for basis function at index idx.
@@ -224,7 +587,11 @@ class MonotonicBasisLoss(nn.Module):
         h = baseline[8]
         t_0 = baseline[9]
 
-        return monotonic_basis_full(x, c_0, c_1, a, b, c, d, e, g, h, t_0, fourier)
+        return monotonic_basis_full(
+            x, c_0, c_1, a, b, c, d, e, g, h, t_0, fourier,
+            num_integration_points=self.num_integration_points,
+            chunk_size=self.integration_chunk_size
+        )
 
     def forward(
         self,

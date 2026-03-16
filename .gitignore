@@ -82,8 +82,36 @@ aclImdb/
 scripts/embeddings/
 scripts/models/
 
-# Meta-learning checkpoints (Large files)
+# Meta-learning checkpoints and outputs (Large files)
 meta_checkpoints/
+meta_training_output/
+profiling_output/
+
+# Toy meta-learning outputs
+toy_meta_learning/gradient_matching_output/
+toy_meta_learning/gradient_matching_output_improved/
+toy_meta_learning/toy_checkpoints/
+toy_meta_learning/toy_meta_output/
+toy_meta_learning/*.log
+toy_meta_learning/*.pt
+
+# Temporary analysis and monitoring scripts
+scripts/monitor_*.sh
+scripts/profile_*.sh
+scripts/profile_*.py
+scripts/watch_*.sh
+scripts/run_*meta*.sh
+scripts/run_*meta*.py
+scripts/analyze_learned_loss.py
+scripts/generate_checkpoint_metadata.py
+scripts/verify_*.py
+
+# Toy meta-learning analysis scripts (generated/temporary)
+toy_meta_learning/analyze_best_checkpoint.py
+toy_meta_learning/analyze_checkpoints.py
+toy_meta_learning/compare_vpu_pudra.py
+toy_meta_learning/diagnose_checkpoints.py
+toy_meta_learning/test_vpu_pudra_equivalence.py
 
 # HuggingFace and OpenML cache
 data/hf_cache/

@@ -52,6 +52,7 @@ TRAINER_IMPORT_PATHS = {
     "nnpu_log": "train.nnpu_log_trainer.NNPULogTrainer",
     "nnpusb": "train.nnpusb_trainer.NNPUSBTrainer",
     "vpu": "train.vpu_trainer.VPUTrainer",
+    "vpu_mean": "train.vpu_mean_trainer.VPUMeanTrainer",
     "distpu": "train.distpu_trainer.DistPUTrainer",
     "selfpu": "train.selfpu_trainer.SelfPUTrainer",
     "holisticpu": "train.holisticpu_trainer.HolisticPUTrainer",
@@ -79,6 +80,8 @@ TRAINER_IMPORT_PATHS = {
     "vpudra_naive_logmse": "train.vpudra_naive_logmse_trainer.VPUDRaNaiveLogMSETrainer",
     "vpudra_naive_logmae": "train.vpudra_naive_logmae_trainer.VPUDRaNaiveLogMAETrainer",
     "vpu_nomixup": "train.vpu_nomixup_trainer.VPUNoMixUpTrainer",
+    "vpu_nomixup_mean": "train.vpu_nomixup_mean_trainer.VPUNoMixUpMeanTrainer",
+    "oracle_bce": "train.oracle_bce_trainer.OracleBCETrainer",
 }
 
 

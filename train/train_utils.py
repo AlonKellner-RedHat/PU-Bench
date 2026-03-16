@@ -221,14 +221,29 @@ def prepare_loaders(
     # Class prior π is the positive fraction in the training set (using true labels)
     prior = (train_dataset.true_labels == 1).float().mean().item()
 
+    # Extract DataLoader optimization parameters
     num_workers = data_config.get("num_workers", 0)
+    prefetch_factor = data_config.get("prefetch_factor", 2) if num_workers > 0 else None
+    persistent_workers = data_config.get("persistent_workers", False) and num_workers > 0
+    pin_memory = data_config.get("pin_memory", False)
+
+    # Common DataLoader kwargs
+    loader_kwargs = {
+        "num_workers": num_workers,
+        "worker_init_fn": seed_worker,
+    }
+    if prefetch_factor is not None:
+        loader_kwargs["prefetch_factor"] = prefetch_factor
+    if persistent_workers:
+        loader_kwargs["persistent_workers"] = persistent_workers
+    if pin_memory:
+        loader_kwargs["pin_memory"] = pin_memory
 
     train_loader = PUDataloader(
         train_dataset,
         batch_size=batch_size,
         shuffle=shuffle_train,
-        num_workers=num_workers,
-        worker_init_fn=seed_worker,
+        **loader_kwargs
     )
 
     validation_loader = None
@@ -237,16 +252,14 @@ def prepare_loaders(
             val_dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=num_workers,
-            worker_init_fn=seed_worker,
+            **loader_kwargs
         )
 
     test_loader = PUDataloader(
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=num_workers,
-        worker_init_fn=seed_worker,
+        **loader_kwargs
     )
 
     # Optional non-shuffled train loader for methods that need it
@@ -264,8 +277,7 @@ def prepare_loaders(
             train_dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=num_workers,
-            worker_init_fn=seed_worker,
+            **loader_kwargs
         )
 
     return train_loader, validation_loader, test_loader, prior, update_loader

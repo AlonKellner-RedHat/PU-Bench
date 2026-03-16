@@ -4,7 +4,7 @@ monotonic_basis_meta:
   meta_weight_decay: 0.01             # AdamW weight decay for regularization
   inner_lr: 0.001                     # Inner loop model learning rate (for K-step optimization)
   meta_batch_size: 32                 # Base meta-batch size (will be adjusted per dataset)
-  meta_iterations: 1000               # Total meta-training iterations
+  meta_iterations: 3               # Total meta-training iterations
   meta_objective: "bce"               # Options: "bce", "snice", "anice"
   K_inner_steps: 3                    # Number of inner loop gradient steps with second-order gradients
 

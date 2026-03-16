@@ -55,9 +55,10 @@ def load_config(config_path: str) -> dict:
     with open(config_path, 'r') as f:
         config_data = yaml.safe_load(f)
 
-    # Extract monotonic_basis_meta config
-    if 'monotonic_basis_meta' in config_data:
-        config = config_data['monotonic_basis_meta']
+    # Extract config from top-level key (e.g., 'monotonic_basis_meta' or 'polynomial_basis_meta')
+    # If the YAML has a single top-level key, extract its value
+    if isinstance(config_data, dict) and len(config_data) == 1:
+        config = list(config_data.values())[0]
     else:
         config = config_data
 
@@ -80,17 +81,21 @@ def run_meta_learning(
         resume_from: Optional path to loss checkpoint to resume from
         use_k3: If True, use K=3 inner loop; if False, use frozen-model approach
     """
-    print("=" * 70)
-    if use_k3:
-        print("K=3 INNER LOOP META-LEARNING FOR MONOTONIC BASIS LOSS")
-    else:
-        print("FROZEN-MODEL META-LEARNING FOR MONOTONIC BASIS LOSS")
-    print("=" * 70)
-    print()
-
     # Load configuration
     print(f"Loading configuration from: {config_path}")
     config = load_config(config_path)
+    print()
+
+    # Print header with correct loss type
+    loss_type = config.get('loss_type', 'monotonic_basis')
+    loss_name = loss_type.replace('_', ' ').title()
+    print("=" * 70)
+    if use_k3:
+        k_steps = config.get('K_inner_steps', 3)
+        print(f"K={k_steps} INNER LOOP META-LEARNING FOR {loss_name.upper()}")
+    else:
+        print(f"FROZEN-MODEL META-LEARNING FOR {loss_name.upper()}")
+    print("=" * 70)
     print()
 
     # Setup device (MPS → CUDA → CPU priority)
@@ -162,8 +167,14 @@ def run_meta_learning(
         for iteration in range(trainer.iteration, num_iterations):
             iter_start = time.time()
 
+            print(f"\n{'='*70}")
+            print(f"ITERATION {iteration + 1}/{num_iterations}")
+            print(f"{'='*70}")
+
             # Sample meta-batch
+            print(f"  Sampling meta-batch...", end=" ", flush=True)
             meta_batch = pool.sample_meta_batch(config.get('meta_batch_size', 8))
+            print(f"Done ({len(meta_batch)} checkpoints)")
 
             # Meta-training step with K=3
             metrics = trainer.meta_train_step_k3(meta_batch)
@@ -171,21 +182,37 @@ def run_meta_learning(
             iter_time = time.time() - iter_start
             trainer.iteration = iteration + 1
 
-            # Logging
+            # Brief summary after each iteration
+            print(f"  Completed in {iter_time:.1f}s | avg_imp: {metrics['avg_improvement']:+.4f} | oracle_bce: {metrics['avg_oracle_loss']:.4f}")
+
+            # Detailed logging
             if (iteration + 1) % config.get('log_freq', 10) == 0:
                 elapsed = time.time() - start_time
                 iter_since_start = iteration + 1 - (trainer.iteration - iteration - 1)
                 avg_time = elapsed / max(iter_since_start, 1)
 
-                print(f"Iteration {iteration + 1}/{num_iterations}")
-                print(f"  Avg improvement: {metrics['avg_improvement']:+.6f}")
-                print(f"  Num checkpoints: {metrics['num_checkpoints']}")
-                print(f"  Reg loss: {metrics['reg_loss']:.6f}")
-                print(f"  Time: {iter_time:.2f}s (avg: {avg_time:.2f}s/iter)")
+                # Evaluate on FIXED validation set for comparable metrics
+                print(f"\n  Using fixed validation batch...", end=" ", flush=True)
+                val_batch = pool.get_fixed_val_batch(config.get('meta_batch_size', 8))
+                print(f"Done ({len(val_batch)} checkpoints)")
+                val_metrics = trainer.meta_validate_step_k3(val_batch)
+
+                print(f"\n  METRICS:")
+                print(f"    Train avg_imp:     {metrics['avg_improvement']:+.6f}")
+                print(f"    Train oracle BCE:  {metrics['avg_oracle_loss']:.6f}")
+                print(f"    Val avg_imp:       {val_metrics['avg_improvement']:+.6f}")
+                print(f"    Val oracle BCE:    {val_metrics['avg_oracle_loss']:.6f}")
+                print(f"    Num checkpoints:   {metrics['num_checkpoints']}")
+                print(f"    Reg loss:          {metrics['reg_loss']:.6f}")
+                print(f"    Time: {iter_time:.2f}s (avg: {avg_time:.2f}s/iter)")
                 print()
 
             # Save checkpoint
             if (iteration + 1) % config.get('save_freq', 50) == 0:
+                # Compute validation metrics for checkpoint (use same fixed batch)
+                val_batch_save = pool.get_fixed_val_batch(config.get('meta_batch_size', 8))
+                val_metrics_save = trainer.meta_validate_step_k3(val_batch_save)
+
                 output_dir = Path(config.get('loss_checkpoint_dir', './learned_losses'))
                 output_dir.mkdir(parents=True, exist_ok=True)
                 checkpoint_path = output_dir / f"loss_iter{iteration + 1:04d}.pth"
@@ -194,9 +221,19 @@ def run_meta_learning(
                     'state_dict': trainer.learned_loss.state_dict(),
                     'optimizer_state': trainer.optimizer_loss.state_dict(),
                     'config': config,
-                    'metrics': metrics
+                    'metrics': metrics,
+                    'val_metrics': val_metrics_save
                 }, checkpoint_path)
                 print(f"✓ Saved checkpoint: {checkpoint_path}")
+                print()
+
+            # Refresh checkpoint pool (curriculum evolution)
+            if (config.get('enable_curriculum', False) and
+                (iteration + 1) > 0 and
+                (iteration + 1) % config.get('checkpoint_refresh_freq', 50) == 0):
+                print()
+                print(f"[Iteration {iteration + 1}] Refreshing checkpoint pool...")
+                trainer._refresh_pool(iteration + 1)
                 print()
 
         # Save final checkpoint
