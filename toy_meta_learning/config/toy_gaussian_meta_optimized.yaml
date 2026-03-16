@@ -1,0 +1,78 @@
+# THROUGHPUT-OPTIMIZED Configuration
+# Goal: Maximize sample throughput per minute
+# Strategy: Minimize sequential bottlenecks, maximize batch parallelism
+
+mode: 'pu'
+
+num_dimensions: 2
+num_samples_per_task: 1000  # Keep quality high
+
+# Smaller grid for testing
+mean_separations: [2.0, 3.0]  # 2 difficulties
+stds: [1.0]  # 1 overlap level
+priors: [0.5]
+labeling_freqs: [0.3]
+negative_labeling_freq: 0.3
+
+# Both training methods
+training_methods: ['oracle', 'naive']
+
+model_hidden_dims: [32, 32]
+model_activation: 'relu'
+
+# Hierarchical PU loss (27 parameters)
+loss_init_mode: 'random'
+loss_init_scale: 0.01
+
+# === THROUGHPUT OPTIMIZATIONS ===
+
+# 1. INNER LOOP CONFIGURATION
+#    Increased to 4 steps for better task adaptation
+#    Trade-off: 4× slower but better meta-learning signal
+inner_optimizer: 'sgd'
+inner_lr: 0.01
+inner_momentum: 0.9
+inner_steps: 4  # Increased from 1 for better adaptation
+
+# 2. MAXIMIZE BATCH PARALLELISM: Use full dataset at once
+#    Eliminates DataLoader iteration overhead
+#    GPU/MPS processes large batches efficiently
+inner_batch_size: 1000  # Was 64 → use entire dataset
+
+# 3. INCREASE META BATCH SIZE: Process more tasks in parallel
+#    Small MLPs (2D input, 32-32 hidden) = low memory footprint
+#    MPS can handle many models at once
+meta_optimizer: 'adamw'  # AdamW with weight decay for regularization
+meta_lr: 0.001
+meta_weight_decay: 1e-4  # Regularize loss parameters
+meta_batch_size: 48  # Was 12 → 4× more tasks (all 48 checkpoints)
+
+# 4. MORE ITERATIONS: Can afford it with faster iterations
+meta_iterations: 500  # Was 300
+
+# 5. REDUCE CHECKPOINT CREATION TIME: Fewer epochs
+#    Captures early/mid/late training without redundancy
+#    2× faster pool creation
+checkpoint_epochs: [1, 50, 100]  # Was [1, 5, 10, 20, 50, 100]
+checkpoint_seeds: [42, 123]  # 2 seeds
+checkpoint_train_lr: 0.001
+
+# Total: 2 difficulties × 1 std × 2 seeds × 2 methods × 3 epochs
+# = 2 × 2 × 2 × 3 = 24 checkpoints (was 48)
+
+# 6. MINIMAL LOGGING: Reduce evaluation overhead
+#    Each log evaluates 40 checkpoints = significant overhead
+log_freq: 100  # Was 20 → log less frequently
+save_freq: 100
+save_dir: './toy_meta_output_optimized'
+
+device: 'auto'
+
+# === EXPECTED THROUGHPUT ===
+# Current (original config):
+#   12 tasks × 3 steps × 64 samples × 10 iter/min = ~23,000 samples/min
+#
+# Optimized (this config):
+#   24 tasks × 1 step × 1000 samples × 30 iter/min = ~720,000 samples/min
+#
+# Speedup: ~30× faster!

@@ -1,0 +1,124 @@
+monotonic_basis_meta:
+  # === Meta-Learning Setup (IMPROVED CONFIGURATION) ===
+  meta_lr: 0.0001                     # Conservative LR for AdamW
+  meta_optimizer: "adamw"             # Use AdamW optimizer (outer loop)
+  meta_weight_decay: 0.01             # AdamW weight decay
+  meta_lr_scheduler: "cosine"         # Cosine annealing scheduler
+  meta_lr_min: 0.00001                # Minimum LR for cosine annealing
+  inner_lr: 0.01                      # Inner loop model learning rate (higher for SGD)
+  inner_optimizer: "sgd"              # Use SGD for inner loop
+  inner_momentum: 0.9                 # Inner loop SGD momentum
+  meta_batch_size: 12                 # Medium batch size
+  meta_iterations: 1800               # Full epoch over checkpoint pool
+  meta_objective: "bce"               # BCE validation loss
+  K_inner_steps: 1                    # SIMPLIFIED: Only 1 inner step (no second-order gradients)
+  gradient_accumulation_steps: 5      # Accumulate over 5 iterations (effective batch=60)
+  gradient_clip_norm: 1.0             # Gradient clipping
+
+  # === Meta-Objective ===
+  oracle_loss_weight: 1.0             # Weight for oracle BCE loss (1.0 = equal weight with improvement)
+
+  # === Regularization ===
+  l1_weight: 0.0001                   # L1 on baseline params
+  l2_weight: 0.001                    # L2 on Fourier params
+
+  # === Performance Optimizations ===
+  precache_loaders: true              # Pre-cache loaders
+  verbose: true                       # Enable detailed logging
+
+  # === DataLoader Settings ===
+  num_workers: 0                      # No multiprocessing
+  prefetch_factor: 2
+  persistent_workers: false
+  pin_memory: false
+
+  # === Adaptive Meta-Batch Sizes ===
+  adaptive_batch_sizes:
+    mushrooms: 12
+    spambase: 12
+    connect4: 12
+    mnist: 6
+    fashionmnist: 6
+    imdb: 4
+    20news: 4
+    cifar10: 2
+    alzheimermri: 2
+
+  # === Vmap Parallelization ===
+  use_vmap: false                     # Sequential processing
+  vmap_chunk_sizes:
+    LeNet: 6
+    MLP_Tabular: 12
+    MLP_Text: 4
+    CNN_CIFAR10: 2
+    CNN_Medical: 2
+  architecture_cycle_order:
+    - LeNet
+    - MLP_Tabular
+    - MLP_Text
+
+  # === Checkpoint Pool ===
+  checkpoint_pool_size: 1800
+  checkpoint_epochs: [1, 5, 10, 15, 20, 25, 30, 35, 40, 45]
+  checkpoint_seeds: [42, 123, 456, 789]
+  enable_curriculum: false
+  checkpoint_refresh_freq: 999999
+  checkpoint_refresh_percent: 0
+  checkpoint_dir: "./meta_checkpoints"
+
+  # === Task Profiling ===
+  profile_tasks: true
+  profile_output: "./task_speeds.json"
+  task_split_file: "./task_split.yaml"
+  target_training_datasets: 5
+  target_test_datasets: 4
+  training_data_type_split:
+    image: 2
+    tabular: 2
+    text: 1
+  test_data_type_split:
+    image: 2
+    tabular: 1
+    text: 1
+
+  # === Training Loop ===
+  log_freq: 10                        # Log every 10 iterations
+  save_freq: 100                      # Save every 100 iterations (less frequent)
+  validate_freq: 100
+
+  # === Model Training Optimizer ===
+  optimizer: "adam"
+  lr: 0.0003
+  weight_decay: 0.0001
+
+  # === Model Architecture ===
+  architecture: "pn_naive"
+
+  # === Loss Function Configuration (SIMPLIFIED) ===
+  loss_type: "monotonic_basis"
+  num_repetitions: 3                  # SIMPLIFIED: 3 reps instead of 4
+  num_fourier: 16                     # K=16 Fourier coefficients
+  use_prior: true
+  init_scale: 0.01                    # Random initialization scale
+  init_mode: "random"                 # FULLY RANDOM (no baselines)
+  init_noise_scale: 0.0               # No extra noise (already random)
+  oracle_mode: false
+  num_integration_points: 100         # High accuracy
+  integration_chunk_size: 256
+
+  # === Dataset Config ===
+  batch_size: 64
+  val_batch_size: 256
+
+  # === Hardware ===
+  device: "auto"
+
+  # === Label Scheme ===
+  label_scheme:
+    true_positive_label: 1
+    true_negative_label: 0
+    pu_labeled_label: 1
+    pu_unlabeled_label: -1
+
+  # === Random Seed ===
+  seed: 42

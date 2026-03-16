@@ -1,0 +1,73 @@
+# HIGH L1 REGULARIZATION Configuration
+# Goal: Achieve 40-60% parameter sparsity with aggressive L1 penalty
+# Strategy: 5× higher L1 lambda + same meta LR and inner steps as sparse config
+
+mode: 'pu'
+
+num_dimensions: 2
+num_samples_per_task: 1000
+
+# Smaller grid for testing
+mean_separations: [2.0, 3.0]  # 2 difficulties
+stds: [1.0]  # 1 overlap level
+priors: [0.5]
+labeling_freqs: [0.3]
+negative_labeling_freq: 0.3
+
+# Both training methods
+training_methods: ['oracle', 'naive']
+
+model_hidden_dims: [32, 32]
+model_activation: 'relu'
+
+# Hierarchical PU loss (27 parameters) with HIGH L1 regularization
+loss_init_mode: 'random'
+loss_init_scale: 0.01
+loss_l1_lambda: 1e-2  # INCREASED: 10× higher than sparse config (was 1e-3)
+
+# === QUALITY OPTIMIZATIONS (same as sparse config) ===
+
+# 1. INNER LOOP CONFIGURATION
+inner_optimizer: 'sgd'
+inner_lr: 0.01
+inner_momentum: 0.9
+inner_steps: 8  # Maximum task adaptation
+
+# 2. MAXIMIZE BATCH PARALLELISM
+inner_batch_size: 1000  # Entire dataset
+
+# 3. META-OPTIMIZATION CONFIGURATION
+meta_optimizer: 'adamw'
+meta_lr: 0.003  # Same as sparse config
+meta_weight_decay: 1e-4
+meta_batch_size: 48  # All 24 checkpoints in pool
+
+# 4. TRAINING SCHEDULE
+meta_iterations: 500
+
+# 5. CHECKPOINT POOL
+checkpoint_epochs: [1, 50, 100]
+checkpoint_seeds: [42, 123]
+checkpoint_train_lr: 0.001
+
+# Total: 2 difficulties × 1 std × 2 seeds × 2 methods × 3 epochs = 24 checkpoints
+
+# 6. LOGGING
+log_freq: 100
+save_freq: 100
+save_dir: './toy_meta_output_high_l1'
+
+device: 'auto'
+
+# === EXPECTED RESULTS ===
+# High L1 regularization (1e-2):
+#   - Target: 50-70% of parameters near zero (|param| < 0.01)
+#   - Very aggressive sparsity - 10× stronger than sparse config (1e-3)
+#   - May sacrifice some performance for interpretability
+#   - Clearer loss structure with only ~8-13 active parameters
+#
+# Same meta LR (0.003) and inner steps (8) as sparse config:
+#   - Strong meta-gradient signal maintained
+#   - Fast convergence to sparse solution
+#
+# Training time: ~25-30 minutes (same as sparse config)

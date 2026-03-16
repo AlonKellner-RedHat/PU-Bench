@@ -1,0 +1,141 @@
+monotonic_basis_meta:
+  # === Meta-Learning Setup (PROFILING RUN) ===
+  meta_lr: 0.00005                    # Lower for stability
+  meta_weight_decay: 0.01             # AdamW weight decay
+  inner_lr: 0.001                     # Inner loop model learning rate
+  meta_batch_size: 4                  # Very small for MPS memory limits
+  meta_iterations: 10                 # SHORT RUN for profiling
+  meta_objective: "bce"               # BCE objective
+  K_inner_steps: 2                    # Reduced to 2 for MPS memory
+
+  # === Gradient Control ===
+  gradient_accumulation_steps: 2      # Reduced for small batch
+  gradient_clip_norm: 1.0             # Clip gradients
+
+  # === Regularization ===
+  l1_weight: 0.0001                   # L1 on baseline params
+  l2_weight: 0.001                    # L2 on Fourier params
+
+  # === Performance Optimizations ===
+  precache_loaders: true              # Pre-cache loaders
+  use_vmap: false                     # Sequential processing
+
+  # === Adaptive Meta-Batch Sizes ===
+  adaptive_batch_sizes:
+    mushrooms: 24
+    spambase: 24
+    connect4: 24
+    mnist: 12
+    fashionmnist: 12
+    imdb: 8
+    20news: 8
+    cifar10: 4
+    alzheimermri: 4
+
+  # === Checkpoint Pool ===
+  checkpoint_pool_size: 1800
+  checkpoint_epochs: [1, 5, 10, 15, 20, 25, 30, 35, 40, 45]
+  checkpoint_seeds: [42, 123, 456, 789]
+  checkpoint_refresh_freq: 999999     # Disable refresh during profiling
+  checkpoint_refresh_percent: 0
+  checkpoint_dir: "./meta_checkpoints"
+
+  # === Curriculum ===
+  enable_curriculum: false            # Disable curriculum
+
+  # === Task Profiling ===
+  profile_tasks: true
+  profile_output: "./task_speeds.json"
+  task_split_file: "./task_split.yaml"
+
+  # === Training Task Selection ===
+  target_training_datasets: 5
+  target_test_datasets: 4
+  training_data_type_split:
+    image: 2
+    tabular: 2
+    text: 1
+  test_data_type_split:
+    image: 2
+    tabular: 1
+    text: 1
+
+  # === Candidate Tasks ===
+  candidate_tasks:
+    mnist:
+      dataset_class: MNIST
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    fashionmnist:
+      dataset_class: FashionMNIST
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    cifar10:
+      dataset_class: CIFAR10
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    alzheimermri:
+      dataset_class: AlzheimerMRI
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    mushrooms:
+      dataset_class: Mushrooms
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    spambase:
+      dataset_class: Spambase
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    connect4:
+      dataset_class: Connect4
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    20news:
+      dataset_class: 20News
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+    imdb:
+      dataset_class: IMDB
+      c_values: [0.3, 0.5, 0.7]
+      priors: [0.3, 0.5, 0.7]
+
+  # === Checkpoint Training ===
+  checkpoint_trainer:
+    method: "pn_naive"
+    lr: 0.001
+    batch_size: 256
+    num_epochs: 40
+
+  # === Learned Loss Parameters (DIVERSE BASELINES) ===
+  num_repetitions: 4                  # 4 reps: uPU + PUDRa + VPU (2 parts)
+  num_fourier: 16                     # 16 Fourier coefficients
+  use_prior: true                     # Enable prior conditioning
+  oracle_mode: false                  # PU mode
+  init_mode: "diverse_baselines"      # NEW: Diverse initialization
+  init_noise_scale: 0.01              # Add exploration noise
+  num_integration_points: 20          # 20 points (fast, ~0.6% error)
+
+  # === Model Training ===
+  optimizer: "adam"
+  lr: 0.0003
+  weight_decay: 0.0001
+  batch_size: 2048
+
+  # === Logging ===
+  log_freq: 1                         # Log every iteration for profiling
+  save_freq: 999999                   # Don't save during profiling
+  loss_checkpoint_dir: "./learned_losses"
+  verbose: true
+
+  # === Label Scheme ===
+  label_scheme:
+    true_positive_label: 1
+    true_negative_label: 0
+    pu_labeled_label: 1
+    pu_unlabeled_label: -1
+
+  # === Random Seed ===
+  seed: 42
+
+  # === Device ===
+  device: "mps"  # Use MPS for profiling (reduced batch/K for memory)

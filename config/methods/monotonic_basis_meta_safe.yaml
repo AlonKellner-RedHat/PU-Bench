@@ -1,0 +1,126 @@
+monotonic_basis_meta:
+  # === Meta-Learning Setup ===
+  meta_lr: 0.00005                    # Loss parameter learning rate (reduced from 0.0001 for stability)
+  meta_weight_decay: 0.01             # AdamW weight decay for regularization
+  inner_lr: 0.001                     # Inner loop model learning rate (for K-step optimization)
+  meta_batch_size: 8                  # Batch size for meta-training (8 checkpoints per iteration)
+  meta_iterations: 1800               # Total meta-training iterations (full pass over 1800 checkpoints)
+  meta_objective: "bce"               # Options: "bce", "snice", "anice"
+  K_inner_steps: 4                    # Number of inner loop gradient steps with second-order gradients
+  gradient_accumulation_steps: 4      # Accumulate gradients over 4 iterations before optimizer step
+  gradient_clip_norm: 1.0             # Gradient clipping to prevent instability
+
+  # === Regularization ===
+  l1_weight: 0.0001                   # L1 on baseline params (sparsity): 1e-4
+  l2_weight: 0.001                    # L2 on Fourier params (stability): 1e-3
+
+  # === Performance Optimizations ===
+  precache_loaders: true              # Pre-cache all data loaders at init (trades init time for iteration speed)
+  verbose: true                       # Enable detailed logging
+
+  # === SAFE DataLoader Settings (prevent RAM overflow) ===
+  num_workers: 0                      # SAFE: No multiprocessing (avoids 8×4=32 batches in memory)
+  prefetch_factor: 2                  # Only used if num_workers > 0
+  persistent_workers: false           # Only used if num_workers > 0
+  pin_memory: false                   # SAFE: Disable to save memory
+
+  # === Adaptive Meta-Batch Sizes (REDUCED FOR SAFETY) ===
+  adaptive_batch_sizes:
+    # Small, fast models - moderate batch sizes (reduced from 48)
+    mushrooms: 12
+    spambase: 12
+    connect4: 12
+
+    # Medium models - small batches (reduced from 16)
+    mnist: 4
+    fashionmnist: 4
+
+    # Large models or embeddings - very small batches (reduced from 8)
+    imdb: 2
+    20news: 2
+    cifar10: 2
+    alzheimermri: 2
+
+  # === Vmap Parallelization ===
+  use_vmap: false                     # Disable vmap (use sequential with batched data)
+  vmap_chunk_sizes:
+    LeNet: 4                          # Reduced from 8
+    MLP_Tabular: 8                    # Reduced from 16
+    MLP_Text: 2                       # Reduced from 4
+    CNN_CIFAR10: 1                    # Reduced from 2
+    CNN_Medical: 1                    # Reduced from 2
+  architecture_cycle_order:
+    - LeNet
+    - MLP_Tabular
+    - MLP_Text
+
+  # === Checkpoint Pool ===
+  checkpoint_pool_size: 1800          # 45 training tasks × 10 epochs × 4 seeds
+
+  # Checkpoint epochs: Include epoch 1 (very early training) to expose the loss
+  # to models at all training stages, not just mid/late training
+  checkpoint_epochs: [1, 5, 10, 15, 20, 25, 30, 35, 40, 45]
+
+  # Multiple seeds for checkpoint diversity: Different initializations lead to
+  # different training trajectories, making the learned loss more robust
+  checkpoint_seeds: [42, 123, 456, 789]
+
+  # Checkpoint curriculum: progressively replace old checkpoints with new ones
+  # trained using the current learned loss
+  enable_curriculum: false            # Disabled to focus on core loss learning
+  checkpoint_refresh_freq: 50         # Refresh every N iterations
+  checkpoint_refresh_percent: 10      # Replace 10% oldest
+  checkpoint_dir: "./meta_checkpoints"
+
+  # === Task Profiling ===
+  profile_tasks: true                 # Run profiling before training
+  profile_output: "./task_speeds.json"
+  task_split_file: "./task_split.yaml"
+
+  # === Training Task Selection ===
+  # These will be populated by create_balanced_split.py based on profiling
+  # MUST include at least 1 task from each data type (image, tabular, text)
+  # Balanced split: 5 datasets (2 image + 2 tabular + 1 text) × 9 configs = 45 training tasks
+  #                 4 datasets (2 image + 1 tabular + 1 text) × 9 configs = 36 test tasks
+  target_training_datasets: 5         # Target: 5 datasets for training
+  target_test_datasets: 4             # Target: 4 datasets for testing
+  training_data_type_split:
+    image: 2                          # 2 unique image datasets
+    tabular: 2                        # 2 unique tabular datasets
+    text: 1                           # 1 unique text dataset
+  test_data_type_split:
+    image: 2                          # 2 unique image datasets
+    tabular: 1                        # 1 unique tabular dataset
+    text: 1                           # 1 unique text dataset
+
+  # === Training Loop ===
+  log_freq: 10                        # Log every N iterations
+  save_freq: 50                       # Save loss checkpoint every N iterations
+  validate_freq: 50                   # Validate on test tasks every N iterations
+
+  # === Optimizer ===
+  optimizer: "adam"
+  lr: 0.0003                          # Model learning rate (not meta_lr)
+  weight_decay: 0.0001
+
+  # === Model Architecture ===
+  architecture: "pn_naive"            # Positive-Negative naive model (f(x) = h(x))
+
+  # === Loss Function Configuration ===
+  loss_type: "monotonic_basis"
+  num_repetitions: 4                  # Changed from 3 to accommodate uPU + PUDRa + VPU (2 parts)
+  num_fourier: 16                     # K=16 Fourier coefficients
+  use_prior: true
+  init_scale: 0.01
+  init_mode: "diverse_baselines"      # Initialize with uPU + PUDRa + VPU baselines (vs 'bce_equivalent')
+  init_noise_scale: 0.01              # Add Gaussian noise to encourage exploration
+  oracle_mode: false
+  num_integration_points: 100         # Numerical integration points (100=very accurate, ~0.45% error)
+  integration_chunk_size: 256         # Process inputs in chunks to reduce memory usage
+
+  # === Dataset Config ===
+  batch_size: 64                      # Training batch size (for each checkpoint's data loader)
+  val_batch_size: 256
+
+  # === Hardware ===
+  device: "auto"                      # auto/mps/cuda/cpu

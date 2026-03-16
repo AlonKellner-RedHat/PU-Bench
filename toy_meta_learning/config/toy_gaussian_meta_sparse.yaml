@@ -1,0 +1,82 @@
+# SPARSE & HIGH-QUALITY Configuration
+# Goal: Learn simpler, more interpretable loss with better performance
+# Strategy: L1 regularization + higher meta LR + more inner steps
+
+mode: 'pu'
+
+num_dimensions: 2
+num_samples_per_task: 1000
+
+# Smaller grid for testing
+mean_separations: [2.0, 3.0]  # 2 difficulties
+stds: [1.0]  # 1 overlap level
+priors: [0.5]
+labeling_freqs: [0.3]
+negative_labeling_freq: 0.3
+
+# Both training methods
+training_methods: ['oracle', 'naive']
+
+model_hidden_dims: [32, 32]
+model_activation: 'relu'
+
+# Hierarchical PU loss (27 parameters) with L1 regularization
+loss_init_mode: 'random'
+loss_init_scale: 0.01
+loss_l1_lambda: 1e-3  # NEW: L1 regularization for sparsity
+
+# === QUALITY OPTIMIZATIONS ===
+
+# 1. INNER LOOP CONFIGURATION
+#    Increased to 8 steps for maximum task adaptation
+#    Trade-off: 8× slower but strongest meta-learning signal
+inner_optimizer: 'sgd'
+inner_lr: 0.01
+inner_momentum: 0.9
+inner_steps: 8  # Increased from 4 for even better adaptation
+
+# 2. MAXIMIZE BATCH PARALLELISM: Use full dataset at once
+inner_batch_size: 1000  # Entire dataset
+
+# 3. META-OPTIMIZATION CONFIGURATION
+#    Higher learning rate for faster convergence
+#    L1 regularization encourages parameter sparsity
+meta_optimizer: 'adamw'
+meta_lr: 0.003  # Increased from 0.001 for faster/stronger updates
+meta_weight_decay: 1e-4  # Regularize loss parameters
+meta_batch_size: 48  # All 24 checkpoints in pool
+
+# 4. TRAINING SCHEDULE
+meta_iterations: 500
+
+# 5. CHECKPOINT POOL
+checkpoint_epochs: [1, 50, 100]
+checkpoint_seeds: [42, 123]
+checkpoint_train_lr: 0.001
+
+# Total: 2 difficulties × 1 std × 2 seeds × 2 methods × 3 epochs = 24 checkpoints
+
+# 6. LOGGING
+log_freq: 100
+save_freq: 100
+save_dir: './toy_meta_output_sparse'
+
+device: 'auto'
+
+# === EXPECTED RESULTS ===
+# L1 regularization (1e-3):
+#   - Pushes small parameters to zero
+#   - Creates sparser, more interpretable loss
+#   - May reduce overfitting
+#
+# Higher meta LR (0.003):
+#   - 3× faster parameter updates
+#   - May escape local minima
+#   - Better exploration of loss space
+#
+# More inner steps (8):
+#   - Strongest task adaptation signal
+#   - Best meta-gradient quality
+#   - Expected: >20% improvement over naive
+#
+# Training time: ~25-30 minutes (2× slower than 4-step version)

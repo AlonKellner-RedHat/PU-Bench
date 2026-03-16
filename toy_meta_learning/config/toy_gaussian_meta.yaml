@@ -1,0 +1,77 @@
+# Toy Gaussian Meta-Learning Configuration
+
+# ============================================================================
+# EXPERIMENT MODE
+# ============================================================================
+# 'pu': Inner loop trains on PU data (labeled positive + unlabeled)
+# 'pn': Inner loop trains on PN data (labeled positive + labeled negative)
+mode: 'pn'  # Try 'pn' first (simpler), then 'pu'
+
+# ============================================================================
+# TASK GENERATION (Gaussian Blobs)
+# ============================================================================
+num_dimensions: 2  # Feature dimensionality (2 for visualization, can scale to 10, 50, 100)
+num_samples_per_task: 1000  # Samples per split (train/val/test)
+
+# Task hyperparameter grid
+mean_separations: [2.0, 3.0]  # Distance between class centers (1.0=hard, 4.0=easy)
+stds: [1.0]  # Standard deviation of Gaussians
+priors: [0.5]  # Class prior (proportion of positives)
+labeling_freqs: [0.3]  # Proportion of positives labeled
+negative_labeling_freq: 0.3  # Proportion of negatives labeled (PN mode only)
+
+# ============================================================================
+# MODEL ARCHITECTURE
+# ============================================================================
+model_hidden_dims: [32, 32]  # Hidden layer dimensions
+model_activation: 'relu'  # Activation function
+
+# ============================================================================
+# LEARNABLE LOSS (3-parameter basis)
+# ============================================================================
+# f(x) = a₁ + a₂·x + a₃·log(x)
+# Optimal for BCE: a₁=0, a₂=0, a₃=-1
+
+loss_init_mode: 'random'  # 'random', 'bce_equivalent', or 'zeros'
+loss_init_scale: 0.01  # Scale for random initialization
+
+# ============================================================================
+# INNER LOOP (Task Training)
+# ============================================================================
+inner_optimizer: 'sgd'  # Optimizer for task models ('sgd' or 'adam')
+inner_lr: 0.01  # Inner loop learning rate
+inner_momentum: 0.9  # SGD momentum (if using SGD)
+inner_steps: 3  # Number of gradient steps per task
+inner_batch_size: 64  # Batch size for task training
+
+# ============================================================================
+# OUTER LOOP (Meta-Learning)
+# ============================================================================
+meta_optimizer: 'adam'  # Meta-optimizer ('adam' or 'sgd')
+meta_lr: 0.001  # Meta-learning rate
+meta_momentum: 0.9  # SGD momentum (if using SGD for meta)
+meta_batch_size: 8  # Number of checkpoints per meta-batch
+meta_iterations: 200  # Total meta-iterations
+
+# ============================================================================
+# CHECKPOINT POOL
+# ============================================================================
+checkpoint_epochs: [1, 5, 10]  # Epochs at which to save checkpoints
+checkpoint_seeds: [42, 123, 456]  # Random seeds for task diversity
+checkpoint_train_lr: 0.001  # LR for training checkpoint models (with BCE)
+
+# Total checkpoints = len(mean_separations) × len(stds) × len(priors) ×
+#                     len(labeling_freqs) × len(checkpoint_seeds) × len(checkpoint_epochs)
+# Example: 2 × 1 × 1 × 1 × 3 × 3 = 18 checkpoints
+
+# ============================================================================
+# LOGGING & SAVING
+# ============================================================================
+log_freq: 10  # Log every N iterations
+save_freq: 50  # Save checkpoint every N iterations
+save_dir: './toy_meta_output'  # Output directory
+
+# ============================================================================
+# DEVICE
+# ============================================================================
+device: 'auto'  # 'auto', 'cpu', 'cuda', or 'mps'

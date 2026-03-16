@@ -1,0 +1,43 @@
+gradient_matching:
+  # Checkpoint pool configuration
+  pool_size: 256  # Fixed pool = batch size (all processed each iteration)
+  persist_ratio: 0.98  # 98% persist, 2% replace (~5 checkpoints per iteration)
+
+  # Task diversity (for generating random tasks)
+  num_dimensions: 2
+  mean_separations: [1.5, 2.0, 2.5, 3.0]
+  stds: [0.8, 1.0, 1.2]
+  labeling_freqs: [0.2, 0.3, 0.4]
+  priors: [0.5]
+  num_samples_per_task: 1000
+
+  # Model architecture
+  model_hidden_dims: [32, 32]
+
+  # Inner loop (checkpoint progression)
+  inner_lr: 0.01
+  inner_optimizer: 'sgd'
+  inner_momentum: 0.9
+  batch_size: 64
+
+  # Meta-learning (pool_size checkpoints processed each iteration)
+  meta_lr: 0.0001
+  meta_weight_decay: 0.00001
+  meta_iterations: 500
+
+  # Learned loss configuration
+  loss_type: 'neural'
+  loss_hidden_dim: 64
+  loss_init_mode: 'xavier_uniform'
+  loss_l05_lambda: 0.001
+
+  # Validation
+  val_freq: 20  # Validate every N iterations
+  num_val_tasks: 3
+
+  # Validation training parameters (convergence-based)
+  max_train_steps: 500  # Maximum training steps before stopping
+  convergence_patience: 20  # Stop after N steps without improvement
+
+  # Device
+  device: 'auto'  # 'auto', 'cpu', 'cuda', 'mps'

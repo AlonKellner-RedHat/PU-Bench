@@ -1,0 +1,55 @@
+META-TRAINING PERFORMANCE BENCHMARK
+Comparing CPU vs MPS for gradient matching meta-learning
+Configuration: 256 checkpoints, hidden_dim=128
+
+======================================================================
+BENCHMARKING: CPU
+======================================================================
+Initializing checkpoint pool with 256 checkpoints...
+✓ Pool initialized with 256 checkpoints
+  Objective distribution: {'oracle_bce': 62, 'pudra': 58, 'vpu': 72, 'learned': 64}
+✓ Pool initialized with 256 checkpoints
+Warming up...
+Running benchmark for 60 iterations...
+  Iter 10/60: 74.7 iters/min (last 10 avg)
+  Iter 20/60: 76.1 iters/min (last 10 avg)
+  Iter 30/60: 75.3 iters/min (last 10 avg)
+  Iter 40/60: 76.9 iters/min (last 10 avg)
+  Iter 50/60: 77.2 iters/min (last 10 avg)
+  Iter 60/60: 76.8 iters/min (last 10 avg)
+
+CPU Results:
+  Average time per iteration: 0.788s
+  Iterations per minute: 76.1
+  Std dev: 0.018s
+
+======================================================================
+BENCHMARKING: MPS
+======================================================================
+Initializing checkpoint pool with 256 checkpoints...
+✓ Pool initialized with 256 checkpoints
+  Objective distribution: {'oracle_bce': 80, 'pudra': 57, 'vpu': 56, 'learned': 63}
+✓ Pool initialized with 256 checkpoints
+Warming up...
+Running benchmark for 60 iterations...
+  Iter 10/60: 17.0 iters/min (last 10 avg)
+  Iter 20/60: 17.1 iters/min (last 10 avg)
+  Iter 30/60: 17.2 iters/min (last 10 avg)
+  Iter 40/60: 17.2 iters/min (last 10 avg)
+  Iter 50/60: 17.1 iters/min (last 10 avg)
+  Iter 60/60: 17.1 iters/min (last 10 avg)
+
+MPS Results:
+  Average time per iteration: 3.509s
+  Iterations per minute: 17.1
+  Std dev: 0.045s
+
+======================================================================
+COMPARISON
+======================================================================
+CPU:  76.1 iters/min
+MPS:  17.1 iters/min
+
+CPU is 4.45x FASTER than MPS
+
+Recommendation: Use CPU for this workload

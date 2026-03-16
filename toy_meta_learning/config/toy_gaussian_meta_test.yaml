@@ -1,0 +1,49 @@
+# Test Extended Configuration (smaller for testing)
+
+mode: 'pu'
+
+num_dimensions: 2
+num_samples_per_task: 1000
+
+# Smaller grid for testing
+mean_separations: [2.0, 3.0]  # 2 difficulties
+stds: [1.0]  # 1 overlap level
+priors: [0.5]
+labeling_freqs: [0.3]
+negative_labeling_freq: 0.3
+
+# Both training methods
+training_methods: ['oracle', 'naive']
+
+model_hidden_dims: [32, 32]
+model_activation: 'relu'
+
+# 6-parameter asymmetric PU loss
+# f_p(x) for labeled positives, f_u(x) for unlabeled
+loss_init_mode: 'random'
+loss_init_scale: 0.01
+
+inner_optimizer: 'sgd'
+inner_lr: 0.01
+inner_momentum: 0.9
+inner_steps: 3
+inner_batch_size: 64
+
+meta_optimizer: 'adam'
+meta_lr: 0.001
+meta_batch_size: 12
+meta_iterations: 300
+
+# Include early, mid, and late training
+checkpoint_epochs: [1, 5, 10, 20, 50, 100]  # 6 stages
+checkpoint_seeds: [42, 123]  # 2 seeds
+checkpoint_train_lr: 0.001
+
+# Total: 2 difficulties × 1 std × 1 prior × 1 labeling_freq × 2 seeds × 2 methods × 6 epochs
+# = 2 × 2 × 2 × 6 = 48 checkpoints
+
+log_freq: 20
+save_freq: 100
+save_dir: './toy_meta_output_test'
+
+device: 'auto'

@@ -1,0 +1,85 @@
+# LARGE POOL + CHECKPOINT CURRICULUM Configuration
+# Goal: Prevent overfitting with 100+ checkpoints and dynamic pool refresh
+# Strategy: Large diverse pool + periodic checkpoint curriculum
+
+mode: 'pu'
+
+num_dimensions: 2
+num_samples_per_task: 1000
+
+# EXPANDED GRID for 144 checkpoints (vs 24 previously)
+mean_separations: [1.5, 2.0, 2.5, 3.0]  # 4 difficulties (was 2)
+stds: [0.9, 1.1]  # 2 overlap levels (was 1)
+priors: [0.5]
+labeling_freqs: [0.3]
+negative_labeling_freq: 0.3
+
+# All training methods (oracle, naive, and two PU baselines)
+training_methods: ['oracle', 'naive', 'pudra_naive', 'vpu_nomixup']
+
+model_hidden_dims: [32, 32]
+model_activation: 'relu'
+
+# Hierarchical PU loss (27 parameters) with moderate L1
+loss_init_mode: 'random'
+loss_init_scale: 0.01
+loss_l1_lambda: 5e-3  # Between sparse (1e-3) and high (1e-2)
+
+# === QUALITY OPTIMIZATIONS ===
+
+# 1. INNER LOOP CONFIGURATION
+inner_optimizer: 'sgd'
+inner_lr: 0.01
+inner_momentum: 0.9
+inner_steps: 8  # Maximum task adaptation
+
+# 2. MAXIMIZE BATCH PARALLELISM
+inner_batch_size: 1000  # Entire dataset
+
+# 3. META-OPTIMIZATION CONFIGURATION
+meta_optimizer: 'adamw'
+meta_lr: 0.003
+meta_weight_decay: 1e-4
+meta_batch_size: 48  # Sample from large pool
+
+# 4. TRAINING SCHEDULE
+meta_iterations: 500
+
+# 5. CHECKPOINT POOL - LARGE & DIVERSE
+checkpoint_epochs: [1, 50, 100]
+checkpoint_seeds: [42, 123, 456]  # 3 seeds (was 2)
+checkpoint_train_lr: 0.001
+
+# Total: 4 difficulties × 2 stds × 3 seeds × 4 methods × 3 epochs = 288 checkpoints
+
+# 6. CHECKPOINT CURRICULUM (NEW!)
+use_checkpoint_curriculum: true
+curriculum_start_iter: 100  # Start refreshing after 100 iterations
+curriculum_refresh_freq: 50  # Refresh every 50 iterations
+curriculum_refresh_ratio: 0.1  # Replace 10% of pool temporarily
+
+# 7. LOGGING
+log_freq: 50  # More frequent logging with large pool
+save_freq: 100
+save_dir: './toy_meta_output_large_pool'
+
+device: 'auto'
+
+# === EXPECTED RESULTS ===
+# Large checkpoint pool (288 checkpoints):
+#   - 4 training methods: oracle, naive, pudra_naive, vpu_nomixup
+#   - Much more diversity in tasks and training approaches
+#   - Harder to overfit to specific quirks
+#   - Better generalization to fresh tasks
+#
+# Checkpoint curriculum:
+#   - Periodically train new checkpoints with learned loss
+#   - Temporarily replace 10% of validation pool
+#   - Co-evolution: loss sees how it performs on models it helped train
+#   - Prevents exploiting static pool artifacts
+#
+# Moderate L1 (5e-3):
+#   - Balance between sparsity and performance
+#   - Target: 30-40% near-zero parameters
+#
+# Training time: ~60-70 minutes (2× larger pool + curriculum overhead)
