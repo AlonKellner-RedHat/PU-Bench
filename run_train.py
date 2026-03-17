@@ -108,9 +108,34 @@ def _build_experiment_name(
     scn = data_cfg.get("scenario")
     strat = data_cfg.get("selection_strategy")
     seed = data_cfg.get("random_seed")
+    target_prev = data_cfg.get("target_prevalence")
+
     # New launcher has no 'experiment' concept; we use a deterministic per-run name
     # Method name is not embedded here to avoid duplication with results/{method}_ prefix
-    return f"{dataset_class}_{scn}_{strat}_c{c:g}_seed{seed}"
+    base_name = f"{dataset_class}_{scn}_{strat}_c{c:g}_seed{seed}"
+
+    # Include target_prevalence in name if it's specified (not None)
+    if target_prev is not None:
+        base_name += f"_prior{target_prev:g}"
+
+    return base_name
+
+
+def _method_already_completed(exp_name: str, method: str, seed: int) -> bool:
+    """Check if a method has already been run for this experiment."""
+    import json
+    import os
+
+    result_file = Path(f"results/seed_{seed}/{exp_name}.json")
+    if not result_file.exists():
+        return False
+
+    try:
+        with open(result_file, "r") as f:
+            data = json.load(f)
+        return method in data.get("runs", {})
+    except Exception:
+        return False
 
 
 def main():
@@ -138,6 +163,11 @@ def main():
         "--dry-run",
         action="store_true",
         help="Only list planned runs without executing",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip methods that have already completed in existing result files",
     )
     args = parser.parse_args()
 
@@ -192,6 +222,7 @@ def main():
     # Execute runs
     import copy
 
+    skipped_count = 0
     for dataset_class, data_runs in datasets_expanded:
         for i, data_cfg in enumerate(data_runs, 1):
             for method in method_names:
@@ -203,6 +234,14 @@ def main():
 
                     # Determine experiment name per run
                     exp_name = _build_experiment_name(dataset_class, data_cfg, method)
+
+                    # Skip if already completed (when --resume is enabled)
+                    if args.resume:
+                        seed = data_cfg.get("random_seed")
+                        if _method_already_completed(exp_name, method, seed):
+                            print(f"⏭  Skipping (already complete): {exp_name} [{method}]")
+                            skipped_count += 1
+                            continue
 
                     # Instantiate and run trainer
                     trainer_cls = trainer_classes[method]
@@ -218,6 +257,9 @@ def main():
                     print(f"Error: {exc}")
                     traceback.print_exc()
                     print("-" * 80)
+
+    if args.resume and skipped_count > 0:
+        print(f"\n📊 Skipped {skipped_count} already-completed runs")
 
 
 if __name__ == "__main__":

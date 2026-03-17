@@ -41,6 +41,15 @@ def expand_dataset_grid(
         [dataset_cfg.get("case_control_mode", "naive_mode")],
     )
 
+    # Handle target_prevalence as a grid parameter if it's a list
+    target_prev = dataset_cfg.get("target_prevalence")
+    if target_prev is None:
+        target_prevs = [None]
+    elif isinstance(target_prev, list):
+        target_prevs = target_prev
+    else:
+        target_prevs = [target_prev]
+
     base = dict(dataset_cfg)
 
     # Backward-compatible aliases / defaults
@@ -50,13 +59,12 @@ def expand_dataset_grid(
 
     base.setdefault("data_dir", "./")
     base.setdefault("val_ratio", 0.0)
-    base.setdefault("target_prevalence", None)
     base.setdefault("with_replacement", True)
     base.setdefault("print_stats", False)
 
     runs: List[Dict[str, Any]] = []
-    for seed, c, scn, strat, cc_mode in itertools.product(
-        seeds, c_vals, scenarios, strategies, cc_modes
+    for seed, c, scn, strat, cc_mode, tprev in itertools.product(
+        seeds, c_vals, scenarios, strategies, cc_modes, target_prevs
     ):
         d = dict(base)
         d["random_seed"] = seed
@@ -66,6 +74,7 @@ def expand_dataset_grid(
         d["scenario"] = scn
         d["selection_strategy"] = strat
         d["case_control_mode"] = cc_mode
+        d["target_prevalence"] = tprev
         for k in [
             "random_seeds",
             "c_values",
