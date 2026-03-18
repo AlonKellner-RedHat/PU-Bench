@@ -81,6 +81,8 @@ TRAINER_IMPORT_PATHS = {
     "vpudra_naive_logmae": "train.vpudra_naive_logmae_trainer.VPUDRaNaiveLogMAETrainer",
     "vpu_nomixup": "train.vpu_nomixup_trainer.VPUNoMixUpTrainer",
     "vpu_nomixup_mean": "train.vpu_nomixup_mean_trainer.VPUNoMixUpMeanTrainer",
+    "vpu_mean_prior": "train.vpu_mean_prior_trainer.VPUMeanPriorTrainer",
+    "vpu_nomixup_mean_prior": "train.vpu_nomixup_mean_prior_trainer.VPUNoMixUpMeanPriorTrainer",
     "oracle_bce": "train.oracle_bce_trainer.OracleBCETrainer",
 }
 

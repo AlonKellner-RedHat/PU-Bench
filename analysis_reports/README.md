@@ -25,6 +25,12 @@ This directory contains comprehensive statistical analysis of VPU vs VPU-Mean me
    - MixUp dependency analysis
    - Clear recommendations for no-MixUp scenario
 
+4. **[../results/PRIOR_VARIANTS_SUMMARY.md](../results/PRIOR_VARIANTS_SUMMARY.md)** - Prior-weighted variants analysis
+   - VPU-Mean-Prior vs VPU-Mean
+   - VPU-NoMixUp-Mean-Prior vs VPU-NoMixUp-Mean
+   - Impact of π·E_P[log(φ(x))] term on performance and calibration
+   - **Conclusion: Prior weighting hurts performance, do not use**
+
 ## 🔑 Key Findings
 
 ### With MixUp Available
@@ -56,6 +62,7 @@ Located in `scripts/`:
 - `analyze_nomixup_variants.py` - No-MixUp variants analysis
 - `analyze_vpu_variants.py` - Original VPU variants comparison
 - `analyze_statistical_significance.py` - Statistical robustness analysis
+- `analyze_prior_variants.py` - Prior-weighted variants analysis (720 experiments)
 
 ## 📅 Analysis Date
 
@@ -72,3 +79,7 @@ March 18, 2026
 
 **I don't have MixUp:**
 - Any scenario → **VPU-NoMixUp-Mean**
+
+**⚠️ AVOID:**
+- **VPU-Mean-Prior** (no F1 benefit, only calibration)
+- **VPU-NoMixUp-Mean-Prior** (F1 -5.8%, catastrophic failures on some datasets)
