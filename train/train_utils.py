@@ -35,6 +35,8 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
     roc_auc_score,
+    average_precision_score,
+    precision_recall_curve,
 )
 from sklearn.model_selection import train_test_split
 
@@ -665,6 +667,29 @@ def evaluate_metrics(
     except Exception:
         auc = float("nan")
 
+    # Average Precision (AP) - threshold-independent F1-like metric
+    # AP is the area under the precision-recall curve
+    try:
+        if len(np.unique(y_true_arr)) < 2:
+            ap = float("nan")
+            max_f1 = float("nan")
+        else:
+            # Average Precision
+            ap = float(average_precision_score(y_true_arr, y_score_arr, pos_label=1))
+
+            # Maximum F1 achievable across all thresholds
+            precisions, recalls, thresholds = precision_recall_curve(y_true_arr, y_score_arr, pos_label=1)
+            # Compute F1 for each threshold (avoid division by zero)
+            f1_scores = np.where(
+                (precisions + recalls) > 0,
+                2 * (precisions * recalls) / (precisions + recalls),
+                0
+            )
+            max_f1 = float(np.max(f1_scores))
+    except Exception:
+        ap = float("nan")
+        max_f1 = float("nan")
+
     # Calibration metrics (A-NICE, S-NICE, ECE, MCE, Brier)
     try:
         if len(np.unique(y_true_arr)) < 2:
@@ -696,6 +721,8 @@ def evaluate_metrics(
         "recall": rec,
         "f1": f1,
         "auc": auc,
+        "ap": ap,  # Average Precision (threshold-independent)
+        "max_f1": max_f1,  # Maximum F1 across all thresholds
         **calib_metrics,  # Unpack calibration metrics
     }
 
