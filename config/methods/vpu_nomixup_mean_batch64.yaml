@@ -1,0 +1,28 @@
+vpu_nomixup_mean_batch64:
+  # Optimizer hyperparameters
+  optimizer: "adam"
+  lr: 0.0003
+  weight_decay: 0.0001
+
+  # Training parameters - BATCH SIZE 64
+  batch_size: 64
+  num_epochs: 40
+  seed: 42
+
+  # Label scheme (PU convention constants)
+  label_scheme:
+    true_positive_label: 1
+    true_negative_label: 0
+    pu_labeled_label: 1
+    pu_unlabeled_label: -1
+
+  # Checkpoint/early stopping configuration
+  checkpoint:
+    enabled: true
+    save_model: false
+    monitor: "val_f1"
+    mode: "max"
+    early_stopping:
+      enabled: true
+      patience: 10
+      min_delta: 0.0001
