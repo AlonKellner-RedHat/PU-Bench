@@ -52,6 +52,7 @@ htmlcov/
 
 # PU-Bench Specific - Experiments & Outputs
 results/
+results-archive/
 logs/
 checkpoints/
 runs/
