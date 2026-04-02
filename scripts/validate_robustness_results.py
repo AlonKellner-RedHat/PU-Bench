@@ -64,28 +64,37 @@ def validate_results():
             with open(json_file) as f:
                 data = json.load(f)
 
-            # Check for required fields
-            hyperparams = data.get("run_data", {}).get("hyperparameters", {})
-            dataset_info = data.get("run_data", {}).get("dataset", {})
+            # Check for required fields in each method's run data
+            # JSON structure: {experiment, updated_at, runs: {method_name: {hyperparameters, dataset, ...}}}
+            file_valid = False
 
-            has_method_prior = "method_prior" in hyperparams
-            has_true_prior = "prior" in dataset_info.get("train", {})
+            for method_name, method_data in data.get('runs', {}).items():
+                hyperparams = method_data.get("hyperparameters", {})
+                dataset_info = method_data.get("dataset", {})
 
-            if not has_method_prior:
-                missing_fields.append((json_file.name, "method_prior"))
-            if not has_true_prior:
-                missing_fields.append((json_file.name, "true_prior"))
+                has_method_prior = "method_prior" in hyperparams
+                has_true_prior = "prior" in dataset_info.get("train", {})
 
-            if has_method_prior and has_true_prior:
+                if has_method_prior and has_true_prior:
+                    file_valid = True
+
+                    # Calculate prior error
+                    method_prior = hyperparams["method_prior"]
+                    true_prior = dataset_info["train"]["prior"]
+
+                    if method_prior is not None and method_prior != "auto":
+                        error = abs(method_prior - true_prior)
+                        prior_errors[f"{json_file.name}:{method_name}"] = error
+
+                    break  # Just check one method per file
+                else:
+                    if not has_method_prior:
+                        missing_fields.append((json_file.name, "method_prior"))
+                    if not has_true_prior:
+                        missing_fields.append((json_file.name, "true_prior"))
+
+            if file_valid:
                 valid_files += 1
-
-                # Calculate prior error
-                method_prior = hyperparams["method_prior"]
-                true_prior = dataset_info["train"]["prior"]
-
-                if method_prior is not None:
-                    error = abs(method_prior - true_prior)
-                    prior_errors[json_file.name] = error
 
         except Exception as e:
             print(f"✗ Error reading {json_file}: {e}")

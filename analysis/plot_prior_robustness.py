@@ -115,7 +115,8 @@ def plot_degradation_heatmap(df_deg, output_dir):
 
     plt.figure(figsize=(10, 6))
     sns.heatmap(pivot, annot=True, fmt='.1f', cmap='RdYlGn_r',
-                vmin=0, vmax=25, cbar_label='Relative F1 Drop (%)',
+                vmin=0, vmax=25,
+                cbar_kws={'label': 'Relative F1 Drop (%)'},
                 linewidths=0.5, linecolor='gray')
     plt.xlabel('Prior Error Range')
     plt.ylabel('Dataset')
