@@ -117,3 +117,4 @@ toy_meta_learning/test_vpu_pudra_equivalence.py
 # HuggingFace and OpenML cache
 data/hf_cache/
 data/openml/
+huggingface/

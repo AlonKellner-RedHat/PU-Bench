@@ -1,11 +1,7 @@
-dataset_class: IMDB
+dataset_class: FashionMNIST
 data_dir: ./datasets
 random_seeds:
-- 42
-- 123
-- 456
 - 789
-- 2024
 c_values:
 - 0.01
 - 0.05
@@ -28,5 +24,3 @@ target_prevalence:
 - 0.9
 with_replacement: true
 also_print_dataset_stats: false
-sbert_model_name: all-MiniLM-L6-v2
-sbert_embeddings_path: ./scripts/embeddings/imdb_sbert_embeddings.npz

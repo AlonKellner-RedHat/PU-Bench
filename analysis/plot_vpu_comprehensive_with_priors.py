@@ -9,6 +9,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from pathlib import Path
+import json
+from matplotlib.patches import Circle, RegularPolygon
+from matplotlib.path import Path as MplPath
+from matplotlib.projections.polar import PolarAxes
+from matplotlib.projections import register_projection
+from matplotlib.spines import Spine
+from matplotlib.transforms import Affine2D
 
 # Set style
 sns.set_style("whitegrid")
@@ -21,6 +28,48 @@ def load_data():
     df = pd.read_csv(results_path)
     return df
 
+def load_convergence_data():
+    """Load convergence epochs from JSON result files"""
+    results_dir = Path(__file__).parent.parent / "results"
+    convergence_data = []
+
+    # Find all JSON result files
+    json_files = list(results_dir.glob("seed_*/*.json"))
+
+    for json_file in json_files:
+        try:
+            with open(json_file, 'r') as f:
+                data = json.load(f)
+
+            # Extract convergence epochs for each method
+            runs = data.get('runs', {})
+            for method, run_data in runs.items():
+                # Extract hyperparameters from run_data
+                hyperparams = run_data.get('hyperparameters', {})
+                dataset = hyperparams.get('dataset_class')
+                seed = hyperparams.get('seed')
+                c = hyperparams.get('labeled_ratio')
+                prior = hyperparams.get('target_prevalence')
+
+                # Extract convergence epoch
+                best_info = run_data.get('best', {})
+                convergence_epoch = best_info.get('epoch', None)
+
+                if convergence_epoch is not None and dataset is not None:
+                    convergence_data.append({
+                        'dataset': dataset,
+                        'method': method,
+                        'seed': seed,
+                        'c': c,
+                        'prior': prior,
+                        'convergence_epoch': convergence_epoch
+                    })
+        except Exception as e:
+            print(f"Error loading {json_file}: {e}")
+            continue
+
+    return pd.DataFrame(convergence_data)
+
 def filter_vpu_all_variants(df):
     """Filter for ALL VPU variants including prior-based"""
     vpu_methods = [
@@ -30,7 +79,7 @@ def filter_vpu_all_variants(df):
     df_filtered = df[df['method'].isin(vpu_methods)].copy()
     return df_filtered
 
-def create_comprehensive_plots(df, output_dir):
+def create_comprehensive_plots(df, df_conv, output_dir):
     """Create comprehensive comparison plots with box plots for variance"""
     output_dir = Path(output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
@@ -64,11 +113,14 @@ def create_comprehensive_plots(df, output_dir):
     # 7. Performance vs calibration scatter with all variants
     plot_performance_calibration_all(df_vpu, output_dir)
 
-    # 8. Prior sensitivity with all variants
-    plot_prior_sensitivity_all_variants(df_vpu, output_dir)
+    # 8. Prior sensitivity with all variants (ALL metrics)
+    plot_prior_sensitivity_all_variants(df_vpu, df_conv, output_dir)
 
-    # 9. C sensitivity with all variants
-    plot_c_sensitivity_all_variants(df_vpu, output_dir)
+    # 9. C sensitivity with all variants (ALL metrics)
+    plot_c_sensitivity_all_variants(df_vpu, df_conv, output_dir)
+
+    # 10. Spider plots per dataset (NEW)
+    plot_spider_plots_per_dataset(df_vpu, df_conv, output_dir)
 
     print(f"\nAll plots saved to {output_dir}")
 
@@ -521,101 +573,333 @@ def plot_performance_calibration_all(df, output_dir):
     plt.close()
     print(f"Created: performance_calibration_all.png")
 
-def plot_prior_sensitivity_all_variants(df, output_dir):
-    """Prior sensitivity for all variants"""
+def plot_prior_sensitivity_all_variants(df, df_conv, output_dir):
+    """Prior sensitivity for all variants - ALL metrics"""
     df_with_prior = df[df['prior'].notna()].copy()
     if len(df_with_prior) == 0:
         return
 
-    datasets = sorted(df_with_prior['dataset'].unique())[:6]
+    # Merge convergence data
+    df_merged = df_with_prior.merge(df_conv, on=['dataset', 'method', 'seed', 'c', 'prior'], how='left')
 
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-    axes = axes.flatten()
+    datasets = sorted(df_merged['dataset'].unique())[:6]
 
-    method_order = ['vpu', 'vpu_mean', 'vpu_mean_prior',
-                    'vpu_nomixup', 'vpu_nomixup_mean', 'vpu_nomixup_mean_prior']
-    colors = ['#1f77b4', '#ff7f0e', '#ff9933', '#2ca02c', '#d62728', '#e377c2']
-    markers = ['o', 's', 'D', '^', 'v', 'p']
+    # Define ALL metrics to plot
+    metrics = [
+        ('test_f1', 'F1 Score', False),
+        ('test_max_f1', 'Max F1', False),
+        ('test_ap', 'Average Precision', False),
+        ('test_auc', 'AUC', False),
+        ('test_accuracy', 'Accuracy', False),
+        ('test_precision', 'Precision', False),
+        ('test_recall', 'Recall', False),
+        ('test_anice', 'A-NICE', True),
+        ('test_snice', 'S-NICE', True),
+        ('test_ece', 'ECE', True),
+        ('test_mce', 'MCE', True),
+        ('test_brier', 'Brier Score', True),
+        ('convergence_epoch', 'Convergence Speed (epochs)', True),
+    ]
 
-    for idx, dataset in enumerate(datasets):
-        if idx >= len(axes):
-            break
-
-        ax = axes[idx]
-        df_dataset = df_with_prior[df_with_prior['dataset'] == dataset]
-
-        for method, color, marker in zip(method_order, colors, markers):
-            df_method = df_dataset[df_dataset['method'] == method]
-            if len(df_method) > 0:
-                prior_stats = df_method.groupby('prior')['test_f1'].mean().reset_index()
-                prior_stats = prior_stats.sort_values('prior')
-
-                ax.plot(prior_stats['prior'], prior_stats['test_f1'],
-                       marker=marker, label=method, color=color,
-                       linewidth=2, markersize=6, alpha=0.7)
-
-        ax.set_xlabel('Prior (π)')
-        ax.set_ylabel('F1 Score')
-        ax.set_title(dataset, fontweight='bold')
-        ax.legend(fontsize=7)
-        ax.grid(alpha=0.3)
-        ax.set_ylim(0, 1.05)
-
-    for idx in range(len(datasets), len(axes)):
-        fig.delaxes(axes[idx])
-
-    plt.suptitle('Prior Sensitivity: All VPU Variants', fontsize=14, fontweight='bold')
-    plt.tight_layout()
-    plt.savefig(output_dir / 'prior_sensitivity_all_variants.png', dpi=300, bbox_inches='tight')
-    plt.close()
-    print(f"Created: prior_sensitivity_all_variants.png")
-
-def plot_c_sensitivity_all_variants(df, output_dir):
-    """C sensitivity for all variants"""
-    datasets = sorted([d for d in df['dataset'].unique() if d not in ['Connect4', 'profile']])[:6]
-
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-    axes = axes.flatten()
+    available_metrics = [(m, n, inv) for m, n, inv in metrics
+                         if m in df_merged.columns and df_merged[m].notna().sum() > 10]
 
     method_order = ['vpu', 'vpu_mean', 'vpu_mean_prior',
                     'vpu_nomixup', 'vpu_nomixup_mean', 'vpu_nomixup_mean_prior']
     colors = ['#1f77b4', '#ff7f0e', '#ff9933', '#2ca02c', '#d62728', '#e377c2']
     markers = ['o', 's', 'D', '^', 'v', 'p']
 
-    for idx, dataset in enumerate(datasets):
-        if idx >= len(axes):
-            break
+    # Create one plot per metric
+    for metric, metric_name, invert in available_metrics:
+        fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+        axes = axes.flatten()
 
-        ax = axes[idx]
-        df_dataset = df[df['dataset'] == dataset]
+        for idx, dataset in enumerate(datasets):
+            if idx >= len(axes):
+                break
 
-        for method, color, marker in zip(method_order, colors, markers):
-            df_method = df_dataset[df_dataset['method'] == method]
-            if len(df_method) > 0:
-                c_stats = df_method.groupby('c')['test_f1'].mean().reset_index()
-                c_stats = c_stats.sort_values('c')
+            ax = axes[idx]
+            df_dataset = df_merged[df_merged['dataset'] == dataset]
 
-                if len(c_stats) > 1:
-                    ax.plot(c_stats['c'], c_stats['test_f1'],
-                           marker=marker, label=method, color=color,
-                           linewidth=2, markersize=6, alpha=0.7)
+            for method, color, marker in zip(method_order, colors, markers):
+                df_method = df_dataset[df_dataset['method'] == method]
+                if len(df_method) > 0:
+                    prior_stats = df_method.groupby('prior')[metric].mean().reset_index()
+                    prior_stats = prior_stats.sort_values('prior')
 
-        ax.set_xlabel('Label Frequency (c)')
-        ax.set_ylabel('F1 Score')
-        ax.set_title(dataset, fontweight='bold')
-        ax.legend(fontsize=7)
-        ax.grid(alpha=0.3)
-        ax.set_xscale('log')
-        ax.set_ylim(0, 1.05)
+                    if len(prior_stats) > 0:
+                        ax.plot(prior_stats['prior'], prior_stats[metric],
+                               marker=marker, label=method, color=color,
+                               linewidth=2, markersize=6, alpha=0.7)
 
-    for idx in range(len(datasets), len(axes)):
-        fig.delaxes(axes[idx])
+            ax.set_xlabel('Prior (π)', fontsize=10)
+            ax.set_ylabel(metric_name, fontsize=10)
+            ax.set_title(dataset, fontweight='bold')
+            ax.legend(fontsize=7, ncol=2)
+            ax.grid(alpha=0.3)
 
-    plt.suptitle('Label Frequency Sensitivity: All VPU Variants', fontsize=14, fontweight='bold')
-    plt.tight_layout()
-    plt.savefig(output_dir / 'c_sensitivity_all_variants.png', dpi=300, bbox_inches='tight')
-    plt.close()
-    print(f"Created: c_sensitivity_all_variants.png")
+        for idx in range(len(datasets), len(axes)):
+            fig.delaxes(axes[idx])
+
+        direction = "(lower is better)" if invert else "(higher is better)"
+        plt.suptitle(f'Prior Sensitivity: {metric_name} {direction}', fontsize=14, fontweight='bold')
+        plt.tight_layout()
+
+        filename = f'prior_sensitivity_{metric}.png'
+        plt.savefig(output_dir / filename, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Created: {filename}")
+
+def plot_c_sensitivity_all_variants(df, df_conv, output_dir):
+    """C sensitivity for all variants - ALL metrics"""
+    # Merge convergence data
+    df_merged = df.merge(df_conv, on=['dataset', 'method', 'seed', 'c', 'prior'], how='left')
+
+    datasets = sorted([d for d in df_merged['dataset'].unique() if d not in ['Connect4', 'profile']])[:6]
+
+    # Define ALL metrics to plot
+    metrics = [
+        ('test_f1', 'F1 Score', False),
+        ('test_max_f1', 'Max F1', False),
+        ('test_ap', 'Average Precision', False),
+        ('test_auc', 'AUC', False),
+        ('test_accuracy', 'Accuracy', False),
+        ('test_precision', 'Precision', False),
+        ('test_recall', 'Recall', False),
+        ('test_anice', 'A-NICE', True),
+        ('test_snice', 'S-NICE', True),
+        ('test_ece', 'ECE', True),
+        ('test_mce', 'MCE', True),
+        ('test_brier', 'Brier Score', True),
+        ('convergence_epoch', 'Convergence Speed (epochs)', True),
+    ]
+
+    available_metrics = [(m, n, inv) for m, n, inv in metrics
+                         if m in df_merged.columns and df_merged[m].notna().sum() > 10]
+
+    method_order = ['vpu', 'vpu_mean', 'vpu_mean_prior',
+                    'vpu_nomixup', 'vpu_nomixup_mean', 'vpu_nomixup_mean_prior']
+    colors = ['#1f77b4', '#ff7f0e', '#ff9933', '#2ca02c', '#d62728', '#e377c2']
+    markers = ['o', 's', 'D', '^', 'v', 'p']
+
+    # Create one plot per metric
+    for metric, metric_name, invert in available_metrics:
+        fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+        axes = axes.flatten()
+
+        for idx, dataset in enumerate(datasets):
+            if idx >= len(axes):
+                break
+
+            ax = axes[idx]
+            df_dataset = df_merged[df_merged['dataset'] == dataset]
+
+            for method, color, marker in zip(method_order, colors, markers):
+                df_method = df_dataset[df_dataset['method'] == method]
+                if len(df_method) > 0:
+                    c_stats = df_method.groupby('c')[metric].mean().reset_index()
+                    c_stats = c_stats.sort_values('c')
+
+                    if len(c_stats) > 1:
+                        ax.plot(c_stats['c'], c_stats[metric],
+                               marker=marker, label=method, color=color,
+                               linewidth=2, markersize=6, alpha=0.7)
+
+            ax.set_xlabel('Label Frequency (c)', fontsize=10)
+            ax.set_ylabel(metric_name, fontsize=10)
+            ax.set_title(dataset, fontweight='bold')
+            ax.legend(fontsize=7, ncol=2)
+            ax.grid(alpha=0.3)
+            ax.set_xscale('log')
+
+        for idx in range(len(datasets), len(axes)):
+            fig.delaxes(axes[idx])
+
+        direction = "(lower is better)" if invert else "(higher is better)"
+        plt.suptitle(f'Label Frequency Sensitivity: {metric_name} {direction}', fontsize=14, fontweight='bold')
+        plt.tight_layout()
+
+        filename = f'c_sensitivity_{metric}.png'
+        plt.savefig(output_dir / filename, dpi=300, bbox_inches='tight')
+        plt.close()
+        print(f"Created: {filename}")
+
+def plot_spider_plots_per_dataset(df, df_conv, output_dir):
+    """Create spider/radar plots for each dataset + c + prior combination comparing all 6 methods"""
+    # Merge convergence data
+    df_merged = df.merge(df_conv, on=['dataset', 'method', 'seed', 'c', 'prior'], how='left')
+
+    # Define metrics to include in spider plot
+    # Format: (column_name, display_name, invert_for_normalization)
+    metrics = [
+        ('test_f1', 'F1', False),
+        ('test_auc', 'AUC', False),
+        ('test_accuracy', 'Accuracy', False),
+        ('test_precision', 'Precision', False),
+        ('test_recall', 'Recall', False),
+        ('test_anice', 'A-NICE', True),  # Lower is better
+        ('test_ece', 'ECE', True),  # Lower is better
+        ('test_brier', 'Brier', True),  # Lower is better
+        ('test_max_f1', 'Max F1', False),
+        ('test_ap', 'AP', False),
+        ('convergence_epoch', 'Conv.\nSpeed', True),  # Lower epochs = faster = better
+    ]
+
+    # Filter to available metrics
+    available_metrics = [(col, name, inv) for col, name, inv in metrics
+                         if col in df_merged.columns and df_merged[col].notna().sum() > 10]
+
+    datasets = sorted([d for d in df_merged['dataset'].unique() if d not in ['Connect4', 'profile']])
+    method_order = ['vpu', 'vpu_mean', 'vpu_mean_prior',
+                    'vpu_nomixup', 'vpu_nomixup_mean', 'vpu_nomixup_mean_prior']
+    colors = ['#1f77b4', '#ff7f0e', '#ff9933', '#2ca02c', '#d62728', '#e377c2']
+
+    # Create subdirectory for spider plots
+    spider_dir = output_dir / "spider_plots"
+    spider_dir.mkdir(exist_ok=True, parents=True)
+
+    plot_count = 0
+
+    # Iterate over each unique combination of dataset, c, and prior
+    for dataset in datasets[:6]:  # Limit to core 6 datasets
+        df_dataset = df_merged[df_merged['dataset'] == dataset].copy()
+
+        if len(df_dataset) == 0:
+            continue
+
+        # Get unique c and prior values for this dataset
+        c_values = sorted(df_dataset['c'].dropna().unique())
+        prior_values = sorted([p for p in df_dataset['prior'].unique() if pd.notna(p)])
+
+        # Also include experiments without prior
+        combinations = []
+        for c in c_values:
+            combinations.append((c, None))  # No prior
+            for prior in prior_values:
+                combinations.append((c, prior))
+
+        for c, prior in combinations:
+            # Filter data for this specific combination
+            if prior is None:
+                df_combo = df_dataset[(df_dataset['c'] == c) & (df_dataset['prior'].isna())]
+                prior_str = "noprior"
+            else:
+                df_combo = df_dataset[(df_dataset['c'] == c) & (df_dataset['prior'] == prior)]
+                prior_str = f"prior{prior}"
+
+            if len(df_combo) == 0:
+                continue
+
+            # Prepare data for spider plot
+            # Calculate mean across seeds for each metric per method
+            method_data = {}
+            for method in method_order:
+                df_method = df_combo[df_combo['method'] == method]
+                if len(df_method) == 0:
+                    continue
+
+                values = []
+                for metric_col, _, _ in available_metrics:
+                    mean_val = df_method[metric_col].mean()
+                    values.append(mean_val)
+
+                method_data[method] = values
+
+            if len(method_data) < 2:  # Need at least 2 methods to compare
+                continue
+
+            # Normalize all metrics to 0-1 scale
+            # For each metric, find min/max across all methods
+            normalized_data = {}
+            metric_ranges = []
+
+            for metric_idx, (metric_col, metric_name, invert) in enumerate(available_metrics):
+                all_values = []
+                for method in method_data:
+                    if not np.isnan(method_data[method][metric_idx]):
+                        all_values.append(method_data[method][metric_idx])
+
+                if not all_values:
+                    metric_ranges.append((0, 1))
+                    continue
+
+                min_val = min(all_values)
+                max_val = max(all_values)
+                metric_ranges.append((min_val, max_val))
+
+            # Normalize each method's data
+            for method, values in method_data.items():
+                normalized = []
+                for idx, (val, (min_val, max_val), (_, _, invert)) in enumerate(zip(values, metric_ranges, available_metrics)):
+                    if np.isnan(val):
+                        normalized.append(0)
+                    elif max_val == min_val:
+                        normalized.append(0.5)
+                    else:
+                        norm_val = (val - min_val) / (max_val - min_val)
+                        # Invert if lower is better
+                        if invert:
+                            norm_val = 1 - norm_val
+                        normalized.append(norm_val)
+
+                normalized_data[method] = normalized
+
+            # Create spider plot
+            labels = [name for _, name, _ in available_metrics]
+            num_vars = len(labels)
+
+            # Compute angle for each axis
+            angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+
+            # Close the plot by appending the first value
+            angles += angles[:1]
+
+            fig, ax = plt.subplots(figsize=(10, 10), subplot_kw=dict(projection='polar'))
+
+            # Plot each method
+            for method, color in zip(method_order, colors):
+                if method not in normalized_data:
+                    continue
+
+                values = normalized_data[method]
+                values += values[:1]  # Close the plot
+
+                ax.plot(angles, values, 'o-', linewidth=2, label=method, color=color, markersize=8)
+                ax.fill(angles, values, alpha=0.15, color=color)
+
+            # Fix axis to go in the right order
+            ax.set_theta_offset(np.pi / 2)
+            ax.set_theta_direction(-1)
+
+            # Draw axis lines for each angle and label
+            ax.set_xticks(angles[:-1])
+            ax.set_xticklabels(labels, fontsize=11, fontweight='bold')
+
+            # Set y-axis limits and labels
+            ax.set_ylim(0, 1)
+            ax.set_yticks([0.2, 0.4, 0.6, 0.8, 1.0])
+            ax.set_yticklabels(['0.2', '0.4', '0.6', '0.8', '1.0'], fontsize=9)
+            ax.set_rlabel_position(0)
+
+            # Add legend
+            ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1), fontsize=10)
+
+            # Add title
+            title = f'{dataset}: c={c}, prior={prior if prior is not None else "None"}\n(All metrics normalized 0-1, higher = better)'
+            plt.title(title, fontsize=13, fontweight='bold', pad=20)
+
+            # Add grid
+            ax.grid(True, linewidth=0.5, alpha=0.5)
+
+            plt.tight_layout()
+
+            # Save with informative filename
+            filename = f'spider_{dataset.lower()}_c{c}_{prior_str}.png'
+            plt.savefig(spider_dir / filename, dpi=300, bbox_inches='tight')
+            plt.close()
+            plot_count += 1
+
+    print(f"Created {plot_count} spider plots in {spider_dir}")
 
 def print_summary_statistics(df):
     """Print summary statistics for all variants"""
@@ -667,6 +951,10 @@ def main():
 
     print(f"Loaded {len(df)} rows")
 
+    print("Loading convergence data from JSON files...")
+    df_conv = load_convergence_data()
+    print(f"Loaded convergence data for {len(df_conv)} method runs")
+
     # Filter all VPU variants
     df_vpu = filter_vpu_all_variants(df)
     print(f"\nFiltered to {len(df_vpu)} rows for all VPU variants")
@@ -678,7 +966,7 @@ def main():
     # Create plots
     print("\n\nCreating comprehensive plots with all variants...")
     output_dir = Path(__file__).parent.parent / "results" / "vpu_comprehensive_with_priors"
-    create_comprehensive_plots(df, output_dir)
+    create_comprehensive_plots(df, df_conv, output_dir)
 
     print("\n" + "="*80)
     print("Comprehensive analysis with priors complete!")

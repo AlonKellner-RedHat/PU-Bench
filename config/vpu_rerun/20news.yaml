@@ -28,3 +28,5 @@ target_prevalence:
 - 0.9
 with_replacement: true
 also_print_dataset_stats: false
+sbert_model_name: all-MiniLM-L6-v2
+sbert_embeddings_path: ./scripts/embeddings/20news_sbert_embeddings.npz
