@@ -32,9 +32,14 @@ def compute_positive_weight(prior: float, label_frequency: float,
     return prior * weight_multiplier
 
 
-def load_optimal_data():
-    """Load empirical optimal prior data from robustness analysis"""
-    data_file = Path("results_robustness/optimal_prior_analysis.csv")
+def load_optimal_data(metric='ap'):
+    """Load empirical optimal prior data from robustness analysis
+
+    Args:
+        metric: Which metric to use ('ap', 'auc', 'max_f1')
+                Default 'ap' (Average Precision) - threshold invariant
+    """
+    data_file = Path(f"results_robustness/optimal_prior_by_{metric}.csv")
 
     if not data_file.exists():
         raise FileNotFoundError(f"Data file not found: {data_file}")
@@ -258,15 +263,21 @@ def test_alternative_formulas(df):
     return pd.DataFrame(results)
 
 
-def main():
+def main(metric='ap'):
+    """
+    Args:
+        metric: Which metric to use for optimal prior ('ap', 'auc', 'max_f1')
+    """
+    metric_names = {'ap': 'Average Precision (AP)', 'auc': 'AUC-ROC', 'max_f1': 'Max F1'}
+
     print("=" * 80)
-    print("Positive Weight Formula Validation")
+    print(f"Positive Weight Formula Validation - Using {metric_names.get(metric, metric)}")
     print("=" * 80)
     print()
 
     # Load data
-    print("Loading empirical optimal prior data...")
-    df = load_optimal_data()
+    print(f"Loading empirical optimal prior data (metric={metric})...")
+    df = load_optimal_data(metric=metric)
     print(f"✓ Loaded {len(df)} experiments with numeric optimal priors")
     print()
 
@@ -332,4 +343,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    metric = sys.argv[1] if len(sys.argv) > 1 else 'ap'
+    main(metric=metric)
