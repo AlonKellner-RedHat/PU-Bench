@@ -54,6 +54,9 @@ class BaseTrainer(ABC):
         # Global random seed
         set_global_seed(self.params.get("seed", 42))
 
+        # Extract method_prior if specified (for robustness experiments)
+        self.method_prior = self.params.get("method_prior", None)
+
         # Can be overridden in subclass run()
         self.file_console = None
         self.checkpoint_handler = None
@@ -64,7 +67,8 @@ class BaseTrainer(ABC):
 
         # Per-seed results and log directories
         seed_value = self.params.get("seed", 42)
-        self.results_root = os.path.join("results", f"seed_{seed_value}")
+        output_dir = self.params.get("output_dir", "results")
+        self.results_root = os.path.join(output_dir, f"seed_{seed_value}")
         self.log_dir = os.path.join(self.results_root, "logs")
         os.makedirs(self.log_dir, exist_ok=True)
 
@@ -228,7 +232,7 @@ class BaseTrainer(ABC):
             self.train_loader,
             self.validation_loader,
             self.test_loader,
-            self.prior,
+            computed_prior,
             self.update_loader,
         ) = prepare_loaders(
             dataset_name=self.experiment_name,
@@ -237,6 +241,16 @@ class BaseTrainer(ABC):
             data_dir=self.params.get("data_dir", "data"),
             method=self.method,
         )
+
+        # Store true prior separately (always computed from training data)
+        self.true_prior = computed_prior
+
+        # Use method_prior from config if specified (for robustness experiments)
+        # Otherwise use the computed prior from training data
+        if hasattr(self, 'method_prior') and self.method_prior is not None:
+            self.prior = self.method_prior
+        else:
+            self.prior = computed_prior
 
         # LaGAM requires a special dataset wrapper for strong/weak augmentations (images only)
         ds_cls = str(self.params.get("dataset_class", "")).lower()

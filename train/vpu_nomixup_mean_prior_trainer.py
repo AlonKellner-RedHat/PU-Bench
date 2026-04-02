@@ -16,7 +16,12 @@ class VPUNoMixUpMeanPriorTrainer(BaseTrainer):
     """VPU-NoMixUp-Mean-Prior learning trainer (no MixUp, with prior weighting)"""
 
     def create_criterion(self):
-        return VPUNoMixUpMeanPriorLoss(self.prior)
+        # Use method_prior from config if specified, otherwise use computed prior from training data
+        if hasattr(self, 'method_prior') and self.method_prior is not None:
+            prior = self.method_prior
+        else:
+            prior = self.prior  # Computed from training data (current behavior)
+        return VPUNoMixUpMeanPriorLoss(prior)
 
     def train_one_epoch(self, epoch_idx: int):
         """Training loop for one epoch (VPU-NoMixUp-Mean-Prior)."""

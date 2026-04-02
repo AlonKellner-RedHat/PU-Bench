@@ -135,6 +135,7 @@ def _build_experiment_name(
     strat = data_cfg.get("selection_strategy")
     seed = data_cfg.get("random_seed")
     target_prev = data_cfg.get("target_prevalence")
+    method_prior = data_cfg.get("method_prior")
 
     # New launcher has no 'experiment' concept; we use a deterministic per-run name
     # Method name is not embedded here to avoid duplication with results/{method}_ prefix
@@ -144,15 +145,22 @@ def _build_experiment_name(
     if target_prev is not None:
         base_name += f"_prior{target_prev:g}"
 
+    # Include method_prior in name if it's specified (for robustness experiments)
+    if method_prior is not None:
+        if method_prior == "auto":
+            base_name += "_methodprior_auto"
+        else:
+            base_name += f"_methodprior{method_prior:g}"
+
     return base_name
 
 
-def _method_already_completed(exp_name: str, method: str, seed: int) -> bool:
+def _method_already_completed(exp_name: str, method: str, seed: int, output_dir: str = "results") -> bool:
     """Check if a method has already been run for this experiment."""
     import json
     import os
 
-    result_file = Path(f"results/seed_{seed}/{exp_name}.json")
+    result_file = Path(f"{output_dir}/seed_{seed}/{exp_name}.json")
     if not result_file.exists():
         return False
 
@@ -194,6 +202,12 @@ def main():
         "--resume",
         action="store_true",
         help="Skip methods that have already completed in existing result files",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="results",
+        help="Output directory for results (default: results)",
     )
     args = parser.parse_args()
 
@@ -251,38 +265,55 @@ def main():
     skipped_count = 0
     for dataset_class, data_runs in datasets_expanded:
         for i, data_cfg in enumerate(data_runs, 1):
-            for method in method_names:
-                try:
-                    method_params = _load_method_params(method, methods_dir)
-                    params = copy.deepcopy(method_params)
-                    # Merge dataset settings into params
-                    params.update(data_cfg)
+            # Expand method_prior_values if specified
+            method_prior_values = data_cfg.get("method_prior_values", [None])
 
-                    # Determine experiment name per run
-                    exp_name = _build_experiment_name(dataset_class, data_cfg, method)
+            for method_prior in method_prior_values:
+                for method in method_names:
+                    try:
+                        method_params = _load_method_params(method, methods_dir)
+                        params = copy.deepcopy(method_params)
+                        # Merge dataset settings into params
+                        params.update(data_cfg)
 
-                    # Skip if already completed (when --resume is enabled)
-                    if args.resume:
-                        seed = data_cfg.get("random_seed")
-                        if _method_already_completed(exp_name, method, seed):
-                            print(f"⏭  Skipping (already complete): {exp_name} [{method}]")
-                            skipped_count += 1
-                            continue
+                        # Add method_prior to params if specified
+                        if method_prior is not None:
+                            if method_prior == "auto":
+                                params["method_prior"] = None  # Will use computed value
+                            else:
+                                params["method_prior"] = method_prior
 
-                    # Instantiate and run trainer
-                    trainer_cls = trainer_classes[method]
-                    trainer = trainer_cls(
-                        method=method, experiment=exp_name, params=params
-                    )
-                    trainer.run()
-                    print(f"✔ Completed: {exp_name}")
-                except Exception as exc:
-                    import traceback
+                        # Add output_dir to params
+                        params["output_dir"] = args.output_dir
 
-                    print(f"✗ Failed: method={method} data={data_cfg}")
-                    print(f"Error: {exc}")
-                    traceback.print_exc()
-                    print("-" * 80)
+                        # Determine experiment name per run (include method_prior for naming)
+                        data_cfg_with_prior = copy.deepcopy(data_cfg)
+                        if method_prior is not None:
+                            data_cfg_with_prior["method_prior"] = method_prior
+                        exp_name = _build_experiment_name(dataset_class, data_cfg_with_prior, method)
+
+                        # Skip if already completed (when --resume is enabled)
+                        if args.resume:
+                            seed = data_cfg.get("random_seed")
+                            if _method_already_completed(exp_name, method, seed, args.output_dir):
+                                print(f"⏭  Skipping (already complete): {exp_name} [{method}]")
+                                skipped_count += 1
+                                continue
+
+                        # Instantiate and run trainer
+                        trainer_cls = trainer_classes[method]
+                        trainer = trainer_cls(
+                            method=method, experiment=exp_name, params=params
+                        )
+                        trainer.run()
+                        print(f"✔ Completed: {exp_name}")
+                    except Exception as exc:
+                        import traceback
+
+                        print(f"✗ Failed: method={method} data={data_cfg}")
+                        print(f"Error: {exc}")
+                        traceback.print_exc()
+                        print("-" * 80)
 
     if args.resume and skipped_count > 0:
         print(f"\n📊 Skipped {skipped_count} already-completed runs")

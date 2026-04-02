@@ -1,0 +1,11 @@
+dataset_class: Mushrooms
+data_dir: ./datasets
+random_seeds: [42]
+c_values: [0.5]
+method_prior_values: [0.3, 0.7, "auto"]
+scenarios: [case-control]
+selection_strategies: [random]
+val_ratio: 0.01
+target_prevalence: [null]
+with_replacement: true
+also_print_dataset_stats: false
