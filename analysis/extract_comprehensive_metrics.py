@@ -89,9 +89,9 @@ def extract_metrics_from_json(json_path):
             'test_mce': metrics.get('test_mce'),
             'test_brier': metrics.get('test_brier'),
 
-            # Timing
+            # Timing and convergence
             'duration': method_data.get('timing', {}).get('duration_seconds'),
-            'epoch': method_data['best'].get('epoch'),
+            'convergence_epoch': method_data['best'].get('epoch'),
         }
 
         results.append(row)
