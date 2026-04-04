@@ -297,6 +297,12 @@ def main():
             for target_prev_train in target_prevalence_train_values:
                 for method_prior in method_prior_values:
                     for method in method_names:
+                        # Skip method_prior for methods that don't support it
+                        # Only vpu_mean_prior and vpu_nomixup_mean_prior use method_prior
+                        if method_prior is not None and "mean_prior" not in method:
+                            # For non-mean_prior methods, only run with method_prior=None
+                            continue
+
                         # Build experiment config
                         exp_config = {
                             "dataset_class": dataset_class,
