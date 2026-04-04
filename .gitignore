@@ -39,7 +39,10 @@ ENV/
 
 # Logs and Databases
 *.log
+*.log.old
 *.sqlite
+*.pid
+nohup.out
 
 # Testing and Linting
 .tox/
@@ -53,6 +56,9 @@ htmlcov/
 # PU-Bench Specific - Experiments & Outputs
 results/
 results-archive/
+results_comprehensive/
+results_cartesian/
+test_results/
 logs/
 checkpoints/
 runs/

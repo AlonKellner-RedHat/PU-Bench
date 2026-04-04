@@ -1,0 +1,15 @@
+dataset_class: Connect4
+data_dir: ./datasets
+random_seeds: [42]
+c_values: [0.1]
+
+# Test custom prior
+target_prevalence_train_values: [0.1]
+
+scenarios: [case-control]
+selection_strategies: [random]
+val_ratio: 0.01
+target_prevalence: [null]
+with_replacement: true
+case_control_mode: "naive_mode"
+also_print_dataset_stats: false

@@ -1,0 +1,17 @@
+dataset_class: Connect4
+data_dir: ./datasets
+random_seeds: [42, 456, 789, 1024, 2048]  # 5 seeds
+c_values: [0.01, 0.1, 0.5]  # 3 values (extreme to moderate label scarcity)
+
+# Cartesian grid dimensions
+target_prevalence_train_values: [0.1, 0.3, 0.5, 0.7, 0.9]  # 5 true priors
+method_prior_values: [0.5, null, 1.0]  # For VPU mean_prior variants (null = "auto")
+
+# PU setup
+scenarios: [case-control]
+selection_strategies: [random]
+val_ratio: 0.01
+target_prevalence: [null]  # Don't resample test set
+with_replacement: true
+case_control_mode: "naive_mode"
+also_print_dataset_stats: false

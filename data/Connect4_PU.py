@@ -18,6 +18,7 @@ def load_connect4_pu(
     labeled_ratio: float = 0.2,
     val_ratio: float = 0.2,
     target_prevalence: float | None = None,
+    target_prevalence_train: float | None = None,
     selection_strategy: str = "random",
     scenario: str = "single",
     case_control_mode: str = "naive_mode",
@@ -48,10 +49,18 @@ def load_connect4_pu(
     X_raw = ds.data
     y_raw = ds.target
 
-    # 2) Map labels to binary robustly: positive if label indicates a win
-    y_arr = np.asarray(y_raw)
-    y_str = np.char.lower(np.char.strip(y_arr.astype(str)))
-    y_bin = np.isin(y_str, positive_classes).astype(int)
+    # 2) Map labels to binary: OpenML connect-4 uses numeric labels
+    # -1.0 = loss, 0.0 = draw, 1.0 = win
+    # Map positive_classes (e.g., ["win"]) to numeric encoding
+    y_arr = np.asarray(y_raw, dtype=float)
+
+    # Create mapping from class names to numeric values
+    class_name_to_value = {"loss": -1.0, "draw": 0.0, "win": 1.0}
+    positive_values = [class_name_to_value.get(cls, cls) for cls in positive_classes]
+    negative_values = [class_name_to_value.get(cls, cls) for cls in negative_classes]
+
+    # Map to binary
+    y_bin = np.isin(y_arr, positive_values).astype(int)
 
     # 3) Ensure dense float32 features. The OpenML connect-4 is a sparse ARFF; when
     #    loaded with as_frame=False, data may be a scipy sparse matrix already one-hot encoded.
@@ -83,13 +92,19 @@ def load_connect4_pu(
         random_state=random_seed,
     )
 
-    # 5) Optional test prevalence adjustment
+    # 5) Optional training set prevalence adjustment
+    if target_prevalence_train is not None and target_prevalence_train > 0:
+        X_train, y_train = resample_by_prevalence(
+            X_train, y_train, target_prevalence_train, random_seed
+        )
+
+    # 6) Optional test prevalence adjustment
     if target_prevalence is not None and target_prevalence > 0:
         X_test, y_test = resample_by_prevalence(
             X_test, y_test, target_prevalence, random_seed
         )
 
-    # 6) Create PU training set
+    # 7) Create PU training set
     pu_train_features, pu_train_true_labels_01, train_labeled_mask = (
         create_pu_training_set(
             X_train,
@@ -103,7 +118,7 @@ def load_connect4_pu(
         )
     )
 
-    # 7) Map to final label coding
+    # 8) Map to final label coding
     final_pu_train_true_labels = np.full_like(
         pu_train_true_labels_01, true_negative_label
     )
@@ -120,7 +135,7 @@ def load_connect4_pu(
     )
     final_pu_train_labels[train_labeled_mask == 1] = pu_labeled_label
 
-    # 8) Build datasets
+    # 9) Build datasets
     train_dataset = PUDataset(
         features=pu_train_features,
         pu_labels=final_pu_train_labels,

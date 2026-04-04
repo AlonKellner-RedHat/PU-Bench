@@ -135,6 +135,7 @@ def _build_experiment_name(
     strat = data_cfg.get("selection_strategy")
     seed = data_cfg.get("random_seed")
     target_prev = data_cfg.get("target_prevalence")
+    target_prev_train = data_cfg.get("target_prevalence_train")
     method_prior = data_cfg.get("method_prior")
 
     # New launcher has no 'experiment' concept; we use a deterministic per-run name
@@ -144,6 +145,10 @@ def _build_experiment_name(
     # Include target_prevalence in name if it's specified (not None)
     if target_prev is not None:
         base_name += f"_prior{target_prev:g}"
+
+    # Include target_prevalence_train in name if it's specified (for cartesian experiments)
+    if target_prev_train is not None:
+        base_name += f"_trueprior{target_prev_train:g}"
 
     # Include method_prior in name if it's specified (for robustness experiments)
     if method_prior is not None:
@@ -209,6 +214,24 @@ def main():
         default="results",
         help="Output directory for results (default: results)",
     )
+    parser.add_argument(
+        "--shuffle-seed",
+        type=int,
+        default=42,
+        help="Seed for randomizing experiment order (for load balancing, default: 42)",
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=1,
+        help="Number of parallel workers (default: 1 for sequential)",
+    )
+    parser.add_argument(
+        "--worker-id",
+        type=int,
+        default=None,
+        help="Worker ID (0 to num_workers-1) for distributed execution",
+    )
     args = parser.parse_args()
 
     # Determine methods
@@ -259,61 +282,108 @@ def main():
                 )
         return
 
-    # Execute runs
+    # Execute runs with randomized queue
     import copy
+    import random
 
-    skipped_count = 0
+    # Step 1: Flatten experiments into a queue
+    all_experiments = []
     for dataset_class, data_runs in datasets_expanded:
-        for i, data_cfg in enumerate(data_runs, 1):
-            # Expand method_prior_values if specified
+        for data_cfg in data_runs:
+            # Expand target_prevalence_train_values and method_prior_values if specified
+            target_prevalence_train_values = data_cfg.get("target_prevalence_train_values", [None])
             method_prior_values = data_cfg.get("method_prior_values", [None])
 
-            for method_prior in method_prior_values:
-                for method in method_names:
-                    try:
-                        method_params = _load_method_params(method, methods_dir)
-                        params = copy.deepcopy(method_params)
-                        # Merge dataset settings into params
-                        params.update(data_cfg)
+            for target_prev_train in target_prevalence_train_values:
+                for method_prior in method_prior_values:
+                    for method in method_names:
+                        # Build experiment config
+                        exp_config = {
+                            "dataset_class": dataset_class,
+                            "data_cfg": copy.deepcopy(data_cfg),
+                            "target_prev_train": target_prev_train,
+                            "method_prior": method_prior,
+                            "method": method,
+                            "seed": data_cfg.get("random_seed"),
+                        }
+                        all_experiments.append(exp_config)
 
-                        # Add method_prior to params if specified
-                        if method_prior is not None:
-                            if method_prior == "auto":
-                                params["method_prior"] = None  # Will use computed value
-                            else:
-                                params["method_prior"] = method_prior
+    print(f"\nGenerated {len(all_experiments)} total experiments")
 
-                        # Add output_dir to params
-                        params["output_dir"] = args.output_dir
+    # Step 2: Randomize order for load balancing
+    random.seed(args.shuffle_seed)
+    random.shuffle(all_experiments)
+    print(f"Shuffled experiments with seed={args.shuffle_seed}")
 
-                        # Determine experiment name per run (include method_prior for naming)
-                        data_cfg_with_prior = copy.deepcopy(data_cfg)
-                        if method_prior is not None:
-                            data_cfg_with_prior["method_prior"] = method_prior
-                        exp_name = _build_experiment_name(dataset_class, data_cfg_with_prior, method)
+    # Step 3: Filter by worker if distributed execution
+    if args.worker_id is not None:
+        # Distribute experiments across workers using modulo
+        worker_experiments = [
+            exp for i, exp in enumerate(all_experiments)
+            if i % args.num_workers == args.worker_id
+        ]
+        print(f"Worker {args.worker_id}/{args.num_workers}: {len(worker_experiments)} experiments")
+        all_experiments = worker_experiments
 
-                        # Skip if already completed (when --resume is enabled)
-                        if args.resume:
-                            seed = data_cfg.get("random_seed")
-                            if _method_already_completed(exp_name, method, seed, args.output_dir):
-                                print(f"⏭  Skipping (already complete): {exp_name} [{method}]")
-                                skipped_count += 1
-                                continue
+    # Step 4: Execute queue with resume
+    skipped_count = 0
+    for i, exp_config in enumerate(all_experiments, 1):
+        dataset_class = exp_config["dataset_class"]
+        method = exp_config["method"]
+        data_cfg = exp_config["data_cfg"]
+        target_prev_train = exp_config["target_prev_train"]
+        method_prior = exp_config["method_prior"]
+        seed = exp_config["seed"]
 
-                        # Instantiate and run trainer
-                        trainer_cls = trainer_classes[method]
-                        trainer = trainer_cls(
-                            method=method, experiment=exp_name, params=params
-                        )
-                        trainer.run()
-                        print(f"✔ Completed: {exp_name}")
-                    except Exception as exc:
-                        import traceback
+        try:
+            # Build params
+            method_params = _load_method_params(method, methods_dir)
+            params = copy.deepcopy(method_params)
+            params.update(data_cfg)
 
-                        print(f"✗ Failed: method={method} data={data_cfg}")
-                        print(f"Error: {exc}")
-                        traceback.print_exc()
-                        print("-" * 80)
+            # Add target_prevalence_train to params if specified
+            if target_prev_train is not None:
+                params["target_prevalence_train"] = target_prev_train
+
+            # Add method_prior to params if specified
+            if method_prior is not None:
+                if method_prior == "auto":
+                    params["method_prior"] = None  # Will use computed value
+                else:
+                    params["method_prior"] = method_prior
+
+            # Add output_dir to params
+            params["output_dir"] = args.output_dir
+
+            # Build experiment name
+            data_cfg_with_priors = copy.deepcopy(data_cfg)
+            if target_prev_train is not None:
+                data_cfg_with_priors["target_prevalence_train"] = target_prev_train
+            if method_prior is not None:
+                data_cfg_with_priors["method_prior"] = method_prior
+            exp_name = _build_experiment_name(dataset_class, data_cfg_with_priors, method)
+
+            # Resume check
+            if args.resume and _method_already_completed(exp_name, method, seed, args.output_dir):
+                print(f"[{i}/{len(all_experiments)}] ⏭  SKIP {method} on {exp_name} (already completed)")
+                skipped_count += 1
+                continue
+
+            # Run experiment
+            trainer_cls = trainer_classes[method]
+            trainer = trainer_cls(method=method, experiment=exp_name, params=params)
+
+            print(f"[{i}/{len(all_experiments)}] ▶ RUN {method} on {exp_name}")
+            trainer.run()
+            print(f"[{i}/{len(all_experiments)}] ✔ DONE {method} on {exp_name}")
+
+        except Exception as exc:
+            import traceback
+
+            print(f"[{i}/{len(all_experiments)}] ✗ FAILED {method} on {exp_name}")
+            print(f"Error: {exc}")
+            traceback.print_exc()
+            print("-" * 80)
 
     if args.resume and skipped_count > 0:
         print(f"\n📊 Skipped {skipped_count} already-completed runs")

@@ -19,6 +19,7 @@ def load_alzheimer_mri_pu(
     labeled_ratio: float = 0.2,
     val_ratio: float = 0.2,
     target_prevalence: float = None,
+    target_prevalence_train: float | None = None,
     selection_strategy: str = "random",
     scenario: str = "single",
     case_control_mode: str = "naive_mode",
@@ -136,6 +137,12 @@ def load_alzheimer_mri_pu(
     train_features, train_labels, val_features, val_labels = split_train_val(
         train_features, train_labels, val_ratio, random_state=random_seed
     )
+
+    # Resample training set to target true prior (if specified)
+    if target_prevalence_train is not None and target_prevalence_train > 0:
+        train_features, train_labels = resample_by_prevalence(
+            train_features, train_labels, target_prevalence_train, random_seed
+        )
 
     # Adjust test set class ratio (if needed)
     if target_prevalence is not None and target_prevalence > 0:
