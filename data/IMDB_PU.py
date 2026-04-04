@@ -129,6 +129,7 @@ def load_imdb_pu(
     labeled_ratio: float = 0.2,
     val_ratio: float = 0.2,
     target_prevalence: float | None = None,
+    target_prevalence_train: float | None = None,  # NEW: For resampling training set
     selection_strategy: str = "random",
     scenario: str = "single",
     case_control_mode: str = "naive_mode",
@@ -257,6 +258,12 @@ def load_imdb_pu(
     X_train, y_train_bin, X_val, y_val_bin = split_train_val(
         X_train, y_train_bin, val_ratio, random_state=random_seed
     )
+
+    # NEW: Resample TRAINING set to target true prior (if specified)
+    if target_prevalence_train is not None and target_prevalence_train > 0:
+        X_train, y_train_bin = resample_by_prevalence(
+            X_train, y_train_bin, target_prevalence_train, random_seed
+        )
 
     if target_prevalence is not None and target_prevalence > 0:
         X_test, y_test_bin = resample_by_prevalence(

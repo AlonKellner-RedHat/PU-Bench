@@ -6,6 +6,7 @@ from .data_utils import (
     split_train_val,
     create_pu_training_set,
     print_dataset_statistics,
+    resample_by_prevalence,
 )
 
 
@@ -15,6 +16,7 @@ def load_spambase_pu(
     labeled_ratio: float = 0.2,
     val_ratio: float = 0.2,
     target_prevalence: float | None = None,
+    target_prevalence_train: float | None = None,  # NEW: For resampling training set
     selection_strategy: str = "random",
     scenario: str = "single",
     case_control_mode: str = "naive_mode",
@@ -56,6 +58,12 @@ def load_spambase_pu(
         stratify=y_trainval,
         random_state=random_seed,
     )
+
+    # NEW: Resample TRAINING set to target true prior (if specified)
+    if target_prevalence_train is not None and target_prevalence_train > 0:
+        X_train, y_train = resample_by_prevalence(
+            X_train, y_train, target_prevalence_train, random_seed
+        )
 
     pu_train_features, pu_train_true_labels_01, train_labeled_mask = (
         create_pu_training_set(

@@ -713,6 +713,23 @@ def evaluate_metrics(
             "brier": float("nan"),
         }
 
+    # Oracle GT PN Cross-Entropy (CE)
+    # This uses true labels (not PU labels) to compute binary cross-entropy
+    # It's an "oracle" metric because true labels aren't available in real PU scenarios
+    try:
+        if len(np.unique(y_true_arr)) < 2:
+            oracle_ce = float("nan")
+        else:
+            # Convert logits to probabilities using sigmoid
+            y_probs = 1.0 / (1.0 + np.exp(-y_score_arr))
+            # Clip probabilities to avoid log(0)
+            y_probs = np.clip(y_probs, 1e-7, 1 - 1e-7)
+            # Binary cross-entropy: -[y*log(p) + (1-y)*log(1-p)]
+            ce_per_sample = -(y_true_arr * np.log(y_probs) + (1 - y_true_arr) * np.log(1 - y_probs))
+            oracle_ce = float(np.mean(ce_per_sample))
+    except Exception:
+        oracle_ce = float("nan")
+
     return {
         "error": 1 - acc,
         "risk": risk,
@@ -723,6 +740,7 @@ def evaluate_metrics(
         "auc": auc,
         "ap": ap,  # Average Precision (threshold-independent)
         "max_f1": max_f1,  # Maximum F1 across all thresholds
+        "oracle_ce": oracle_ce,  # Oracle GT PN Cross-Entropy (uses true labels)
         **calib_metrics,  # Unpack calibration metrics
     }
 
