@@ -1,0 +1,16 @@
+dataset_class: Mushrooms
+data_dir: ./datasets
+random_seeds: [42, 456, 789]
+c_values: [0.1, 0.5]
+
+# Cartesian product: true_prior × method_prior
+target_prevalence_train_values: [0.1, 0.3, 0.5, 0.7, 0.9]  # True priors (simulated via resampling)
+method_prior_values: ["auto"]  # Auto = use true prior from data
+
+scenarios: [case-control]
+selection_strategies: [random]
+val_ratio: 0.01
+target_prevalence: [null]  # Don't resample test set
+with_replacement: true
+case_control_mode: "naive_mode"
+also_print_dataset_stats: false

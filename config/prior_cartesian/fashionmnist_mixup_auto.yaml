@@ -1,0 +1,15 @@
+dataset_class: FashionMNIST
+data_dir: ./datasets
+random_seeds: [42, 456, 789]
+c_values: [0.1, 0.5]
+
+target_prevalence_train_values: [0.1, 0.3, 0.5, 0.7, 0.9]
+method_prior_values: ["auto"]
+
+scenarios: [case-control]
+selection_strategies: [random]
+val_ratio: 0.01
+target_prevalence: [null]
+with_replacement: true
+case_control_mode: "naive_mode"
+also_print_dataset_stats: false
