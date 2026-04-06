@@ -1,0 +1,13 @@
+dataset_class: AlzheimerMRI
+data_dir: datasets/Alzheimer_MRI_4_classes_dataset/
+random_seeds: [42]  # Single seed
+c_values: [0.1]     # Single c value
+target_prevalence_train_values: [0.5]  # Single prior
+method_prior_values: [null]  # No method_prior grid
+scenarios: [case-control]
+selection_strategies: [random]
+val_ratio: 0.01
+target_prevalence: [null]
+with_replacement: true
+case_control_mode: "naive_mode"
+also_print_dataset_stats: false

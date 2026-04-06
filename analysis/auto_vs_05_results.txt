@@ -1,0 +1,204 @@
+warning: `VIRTUAL_ENV=/Library/Frameworks/Python.framework/Versions/3.12` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+Loading Phase 1 results...
+Loaded 900 results
+  auto: 450
+  0.5:  450
+  Datasets: ['Connect4', 'FashionMNIST', 'IMDB', 'MNIST', 'Mushrooms', 'Spambase']
+  True priors: [np.float64(0.1), np.float64(0.3), np.float64(0.5), np.float64(0.7), np.float64(0.9)]
+  C values: [np.float64(0.01), np.float64(0.1), np.float64(0.5)]
+
+================================================================================
+OVERALL COMPARISON: auto vs 0.5
+================================================================================
+
+test_ap:
+  auto:  0.8936 (n=450)
+  0.5:   0.8951 (n=450)
+  diff:  -0.0015 (↑ better)
+  winner: 0.5
+  paired t-test: t=-0.622, p=0.5341 ns
+
+test_auc:
+  auto:  0.8906 (n=450)
+  0.5:   0.8915 (n=450)
+  diff:  -0.0008 (↑ better)
+  winner: 0.5
+  paired t-test: t=-0.406, p=0.6851 ns
+
+test_f1:
+  auto:  0.8115 (n=450)
+  0.5:   0.8056 (n=450)
+  diff:  +0.0058 (↑ better)
+  winner: auto
+  paired t-test: t=0.727, p=0.4675 ns
+
+test_accuracy:
+  auto:  0.8219 (n=450)
+  0.5:   0.8353 (n=450)
+  diff:  -0.0134 (↑ better)
+  winner: 0.5
+  paired t-test: t=-3.391, p=0.0008 ***
+
+test_oracle_ce:
+  auto:  0.4797 (n=450)
+  0.5:   0.4148 (n=450)
+  diff:  -0.0648 (↓ better)
+  winner: 0.5
+  paired t-test: t=4.157, p=0.0000 ***
+
+================================================================================
+BY DATASET COMPARISON
+================================================================================
+
+Connect4:
+  auto: 0.8836 ± 0.0726
+  0.5:  0.8799 ± 0.0745
+  diff: +0.0037 → auto (ns)
+
+FashionMNIST:
+  auto: 0.9887 ± 0.0304
+  0.5:  0.9887 ± 0.0102
+  diff: +0.0001 → auto (ns)
+
+IMDB:
+  auto: 0.7877 ± 0.0802
+  0.5:  0.7892 ± 0.0854
+  diff: -0.0015 → 0.5 (ns)
+
+MNIST:
+  auto: 0.9773 ± 0.0305
+  0.5:  0.9715 ± 0.0380
+  diff: +0.0058 → auto (***)
+
+Mushrooms:
+  auto: 0.9806 ± 0.0357
+  0.5:  0.9758 ± 0.0517
+  diff: +0.0048 → auto (ns)
+
+Spambase:
+  auto: 0.7440 ± 0.2137
+  0.5:  0.7657 ± 0.1981
+  diff: -0.0217 → 0.5 (ns)
+
+================================================================================
+BY TRUE PRIOR COMPARISON
+================================================================================
+
+true_prior=0.1:
+  auto: 0.8857
+  0.5:  0.8905
+  diff: -0.0048 → 0.5
+  dataset wins: auto=5/6, 0.5=1/6
+
+true_prior=0.3:
+  auto: 0.9210
+  0.5:  0.9150
+  diff: +0.0061 → auto
+  dataset wins: auto=4/6, 0.5=2/6
+
+true_prior=0.5:
+  auto: 0.9236
+  0.5:  0.9240
+  diff: -0.0004 → 0.5
+  dataset wins: auto=5/6, 0.5=1/6
+
+true_prior=0.7:
+  auto: 0.9055
+  0.5:  0.8998
+  diff: +0.0057 → auto
+  dataset wins: auto=6/6, 0.5=0/6
+
+true_prior=0.9:
+  auto: 0.8324
+  0.5:  0.8463
+  diff: -0.0140 → 0.5
+  dataset wins: auto=2/6, 0.5=4/6
+
+================================================================================
+BY LABEL FREQUENCY (c) COMPARISON
+================================================================================
+
+c=0.01:
+  auto: 0.8134
+  0.5:  0.8125
+  diff: +0.0009 → auto
+  dataset wins: auto=4/6, 0.5=2/6
+
+c=0.1:
+  auto: 0.9220
+  0.5:  0.9209
+  diff: +0.0011 → auto
+  dataset wins: auto=5/6, 0.5=1/6
+
+c=0.5:
+  auto: 0.9455
+  0.5:  0.9520
+  diff: -0.0064 → 0.5
+  dataset wins: auto=3/6, 0.5=3/6
+
+================================================================================
+WHEN DOES AUTO WIN vs LOSE?
+================================================================================
+
+Overall wins:
+  auto wins: 282 (63.1%)
+  0.5 wins:  165 (36.9%)
+
+By true prior:
+  π_true=0.1: auto wins 68.5% (mean diff=-0.0054)
+  π_true=0.3: auto wins 64.4% (mean diff=+0.0061)
+  π_true=0.5: auto wins 52.8% (mean diff=-0.0011)
+  π_true=0.7: auto wins 73.3% (mean diff=+0.0057)
+  π_true=0.9: auto wins 56.2% (mean diff=-0.0128)
+
+By prior distance from 0.5:
+  |π_measured - 0.5| <= 0.1:
+    auto wins 52.8% (n=89)
+  |π_measured - 0.5| > 0.1:
+    auto wins 65.6% (n=358)
+  |π_measured - 0.5| <= 0.2:
+    auto wins 58.7% (n=179)
+  |π_measured - 0.5| > 0.2:
+    auto wins 66.0% (n=268)
+  |π_measured - 0.5| <= 0.3:
+    auto wins 63.6% (n=269)
+  |π_measured - 0.5| > 0.3:
+    auto wins 62.4% (n=178)
+
+By dataset:
+  Connect4: auto wins 59.7% (mean diff=+0.0039)
+  FashionMNIST: auto wins 77.3% (mean diff=+0.0001)
+  IMDB: auto wins 60.0% (mean diff=-0.0015)
+  MNIST: auto wins 78.7% (mean diff=+0.0058)
+  Mushrooms: auto wins 53.3% (mean diff=+0.0048)
+  Spambase: auto wins 49.3% (mean diff=-0.0217)
+
+By label frequency:
+  c=0.01: auto wins 60.8% (mean diff=+0.0002)
+  c=0.1: auto wins 54.7% (mean diff=+0.0011)
+  c=0.5: auto wins 73.8% (mean diff=-0.0057)
+
+================================================================================
+INTERACTION ANALYSIS: Prior Distance × Label Frequency
+================================================================================
+
+c=0.01:
+  close (≤0.1): auto wins 48.3% (diff=-0.0027, n=29)
+  medium (0.1-0.2): auto wins 56.7% (diff=+0.0155, n=30)
+  far (>0.2): auto wins 66.3% (diff=-0.0041, n=89)
+
+c=0.1:
+  close (≤0.1): auto wins 46.7% (diff=-0.0017, n=30)
+  medium (0.1-0.2): auto wins 53.3% (diff=-0.0007, n=30)
+  far (>0.2): auto wins 57.8% (diff=+0.0026, n=90)
+
+c=0.5:
+  close (≤0.1): auto wins 63.3% (diff=+0.0010, n=30)
+  medium (0.1-0.2): auto wins 83.3% (diff=+0.0033, n=30)
+  far (>0.2): auto wins 74.2% (diff=-0.0110, n=89)
+
+================================================================================
+SUMMARY
+================================================================================
+
+Key insights will be generated based on the analysis above.
