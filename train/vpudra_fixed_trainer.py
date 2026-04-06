@@ -76,7 +76,7 @@ class VPUDRaFixedTrainer(BaseTrainer):
 
             # Create MixUp targets: y_mix = lam * p(x) + (1-lam) * 1.0
             # Note: detach p(x) to avoid double backprop
-            pos_prob = torch.sigmoid(self.model(x)).detach()
+            pos_prob = p_all.detach()  # Reuse p_all instead of recomputing
             sam_target = lam_float * pos_prob + (1 - lam_float) * torch.ones_like(
                 pos_prob
             )

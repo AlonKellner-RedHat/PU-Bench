@@ -78,7 +78,7 @@ class VPUDRaPointProcessTrainer(BaseTrainer):
             # Create anchored MixUp target (ANCHOR ASSUMPTION for stability)
             # μ = λ * p(x) + (1-λ) * 1.0
             # Note: detach p(x) to avoid double backprop
-            pos_prob = torch.sigmoid(self.model(x)).detach()
+            pos_prob = p_all.detach()  # Reuse p_all instead of recomputing
             mu_anchor = lam_float * pos_prob + (1 - lam_float) * torch.ones_like(
                 pos_prob
             )

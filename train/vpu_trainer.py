@@ -31,8 +31,9 @@ class VPUTrainer(BaseTrainer):
             if len(p_features) == 0:
                 continue
 
-            # log σ(ϕ(x))
-            log_phi_all = torch.sigmoid(self.model(x)).log()
+            # σ(ϕ(x)) - compute once and reuse
+            phi_all = torch.sigmoid(self.model(x))
+            log_phi_all = phi_all.log()
             targets = p_mask.float()
 
             # Mixup: sample p_mix from same batch
@@ -54,7 +55,7 @@ class VPUTrainer(BaseTrainer):
             lam_float = float(lam)
             sam_data = lam * x + (1 - lam) * p_mix
 
-            pos_prob = torch.sigmoid(self.model(x)).detach()
+            pos_prob = phi_all.detach()  # Reuse phi_all instead of recomputing
             sam_target = lam_float * pos_prob + (1 - lam_float) * torch.ones_like(
                 pos_prob
             )
