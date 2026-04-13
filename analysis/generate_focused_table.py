@@ -37,6 +37,14 @@ PAPER_METRICS = {
     "convergence": {"label": "Epochs", "higher_better": False, "format": ".1f"},
 }
 
+# Timing metrics
+TIMING_METRICS = {
+    "total_time": {"label": "Total Time (s)", "higher_better": False, "format": ".1f"},
+    "avg_time_per_epoch": {"label": "Time/Epoch (s)", "higher_better": False, "format": ".2f"},
+    "time_to_best": {"label": "Time to Best (s)", "higher_better": False, "format": ".1f"},
+    "efficiency_ratio": {"label": "Efficiency Ratio", "higher_better": False, "format": ".3f"},
+}
+
 # Focused method set (in display order)
 FOCUSED_METHODS = [
     ("nnpu", "nnPU"),
@@ -106,6 +114,32 @@ def load_results_by_dataset():
                 if "convergence" not in results[dataset][method_id]:
                     results[dataset][method_id]["convergence"] = []
                 results[dataset][method_id]["convergence"].append(method_data["best"]["epoch"])
+
+            # Store timing metrics
+            duration_sec = method_data.get("timing", {}).get("duration_seconds", None)
+            global_epochs = method_data.get("global_epochs", None)
+            best_epoch = method_data.get("best", {}).get("epoch", None)
+
+            if duration_sec is not None and global_epochs is not None and best_epoch is not None and global_epochs > 0:
+                # Total convergence time
+                if "total_time" not in results[dataset][method_id]:
+                    results[dataset][method_id]["total_time"] = []
+                results[dataset][method_id]["total_time"].append(duration_sec)
+
+                # Average time per epoch
+                if "avg_time_per_epoch" not in results[dataset][method_id]:
+                    results[dataset][method_id]["avg_time_per_epoch"] = []
+                results[dataset][method_id]["avg_time_per_epoch"].append(duration_sec / global_epochs)
+
+                # Time to best epoch
+                if "time_to_best" not in results[dataset][method_id]:
+                    results[dataset][method_id]["time_to_best"] = []
+                results[dataset][method_id]["time_to_best"].append((best_epoch / global_epochs) * duration_sec)
+
+                # Efficiency ratio
+                if "efficiency_ratio" not in results[dataset][method_id]:
+                    results[dataset][method_id]["efficiency_ratio"] = []
+                results[dataset][method_id]["efficiency_ratio"].append(best_epoch / global_epochs)
 
     return results
 

@@ -149,6 +149,35 @@ def compute_metrics_from_outputs(y_true, y_pred, y_scores, prior=None) -> dict:
     return metrics
 
 
+def compute_timing_metrics(method_data):
+    """Compute timing-based metrics from method results."""
+    timing_metrics = {}
+
+    # Extract timing info
+    duration_sec = method_data.get("timing", {}).get("duration_seconds", None)
+    global_epochs = method_data.get("global_epochs", None)
+    best_epoch = method_data.get("best", {}).get("epoch", None)
+
+    if duration_sec is not None and global_epochs is not None and best_epoch is not None:
+        # Total convergence time (wall clock)
+        timing_metrics["total_time"] = duration_sec
+
+        # Average time per epoch
+        timing_metrics["avg_time_per_epoch"] = duration_sec / global_epochs if global_epochs > 0 else None
+
+        # Time to best epoch (when best validation performance was achieved)
+        timing_metrics["time_to_best"] = (best_epoch / global_epochs) * duration_sec if global_epochs > 0 else None
+
+        # Efficiency ratio (lower = converged earlier)
+        timing_metrics["efficiency_ratio"] = best_epoch / global_epochs if global_epochs > 0 else None
+
+        # Convergence speed (epochs)
+        timing_metrics["epochs_to_best"] = best_epoch
+        timing_metrics["total_epochs"] = global_epochs
+
+    return timing_metrics
+
+
 def recompute_all_metrics(results_dir: Path, output_json: Path):
     """Recompute metrics for all experiments in results directory."""
 
@@ -207,9 +236,16 @@ def recompute_all_metrics(results_dir: Path, output_json: Path):
                         for metric_name, value in metrics.items():
                             method_metrics[f"{split}_{metric_name}"] = value
 
+                    # Compute timing metrics from original data
+                    timing_metrics = compute_timing_metrics(original_data["runs"][method])
+                    method_metrics.update(timing_metrics)
+
                     exp_results["experiments"][method] = {
                         "metrics": method_metrics,
                         "hyperparameters": original_data["runs"][method].get("hyperparameters", {}),
+                        "timing": original_data["runs"][method].get("timing", {}),
+                        "global_epochs": original_data["runs"][method].get("global_epochs", None),
+                        "best_epoch": original_data["runs"][method].get("best", {}).get("epoch", None),
                     }
                 except Exception as e:
                     print(f"ERROR: Failed to recompute metrics for {exp_name}/{method}: {e}")
