@@ -173,6 +173,9 @@ class BaseTrainer(ABC):
             else:
                 self._max_gpu_mem_bytes = 0
 
+            # NEW: Save raw model outputs (scores) if enabled
+            self._save_raw_outputs()
+
             result = self._compose_result_summary()
             # Write per-experiment JSON into per-seed directory:
             # results/seed_{seed}/{experiment}.json, merging runs by method
@@ -580,6 +583,98 @@ class BaseTrainer(ABC):
             "hyperparameters": self.params,
         }
         return result
+
+    def _save_raw_outputs(self):
+        """
+        Save raw model outputs (y_true, y_pred, y_scores) to NPZ files.
+
+        This enables retroactive metric calculation without re-training.
+        Saves outputs for train, validation, and test splits.
+
+        Note: If checkpoints are not saved (save_model=false), this will use
+        the final model state, which may differ from the "best" epoch.
+        For exact reproducibility, enable save_model in checkpoint config.
+        """
+        # Check if raw output saving is enabled (default: True)
+        if not self.params.get("save_raw_outputs", True):
+            return
+
+        try:
+            # Load best checkpoint if available and saved
+            checkpoint_loaded = False
+            if self.checkpoint_handler and hasattr(self.checkpoint_handler, "save_path"):
+                best_ckpt_path = self.checkpoint_handler.save_path
+                if best_ckpt_path and os.path.exists(best_ckpt_path):
+                    try:
+                        state_dict = torch.load(best_ckpt_path, map_location=self.device)
+                        self.model.load_state_dict(state_dict)
+                        checkpoint_loaded = True
+                        if self.file_console:
+                            self.file_console.log(f"Loaded best checkpoint from: {best_ckpt_path}")
+                    except Exception as e:
+                        if self.file_console:
+                            self.file_console.log(f"Warning: Could not load best checkpoint: {e}")
+
+            # If no checkpoint loaded, use current model state (may not be "best" epoch)
+            if not checkpoint_loaded and self.file_console:
+                self.file_console.log(
+                    "No checkpoint loaded - using final model state for scores "
+                    "(may differ from best epoch if save_model=false)"
+                )
+
+            # Evaluate with raw outputs on all splits
+            _, train_raw = evaluate_metrics(
+                self.model, self.train_loader, self.device, self.prior,
+                return_raw_outputs=True
+            )
+            _, test_raw = evaluate_metrics(
+                self.model, self.test_loader, self.device, self.prior,
+                return_raw_outputs=True
+            )
+
+            # Validation might be None for some trainers
+            if self.validation_loader is not None:
+                _, val_raw = evaluate_metrics(
+                    self.model, self.validation_loader, self.device, self.prior,
+                    return_raw_outputs=True
+                )
+            else:
+                # Create empty placeholders if no validation set
+                val_raw = {
+                    "y_true": np.array([]),
+                    "y_pred": np.array([]),
+                    "y_scores": np.array([]),
+                }
+
+            # Create scores subdirectory
+            scores_dir = os.path.join(self.results_root, "scores")
+            os.makedirs(scores_dir, exist_ok=True)
+
+            # Save to NPZ file (include experiment name to avoid collisions)
+            scores_path = os.path.join(scores_dir, f"{self.experiment_name}_{self.method}_scores.npz")
+            np.savez_compressed(
+                scores_path,
+                # Train set
+                train_y_true=train_raw["y_true"],
+                train_y_pred=train_raw["y_pred"],
+                train_y_scores=train_raw["y_scores"],
+                # Validation set
+                val_y_true=val_raw["y_true"],
+                val_y_pred=val_raw["y_pred"],
+                val_y_scores=val_raw["y_scores"],
+                # Test set
+                test_y_true=test_raw["y_true"],
+                test_y_pred=test_raw["y_pred"],
+                test_y_scores=test_raw["y_scores"],
+            )
+
+            if self.file_console:
+                self.file_console.log(f"Saved raw outputs to: {scores_path}")
+
+        except Exception as e:
+            # Don't fail training if score saving fails
+            if self.file_console:
+                self.file_console.log(f"Warning: Failed to save raw outputs: {e}")
 
     def _collect_dataset_stats(self) -> dict:
         """Gather dataset-level statistics for train/test splits."""

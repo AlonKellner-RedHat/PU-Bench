@@ -518,7 +518,8 @@ def evaluate_metrics(
     loader: DataLoader,
     device: torch.device,
     prior: float,
-) -> dict[str, float]:
+    return_raw_outputs: bool = False,
+) -> dict[str, float] | tuple[dict[str, float], dict[str, np.ndarray]]:
     """Evaluate a model on a PU-formatted DataLoader.
 
     The evaluation computes:
@@ -527,6 +528,20 @@ def evaluate_metrics(
         - "error": 1 - accuracy.
         - "accuracy", "precision", "recall", "f1": Standard classification metrics
                    computed against true labels.
+
+    Args:
+        model: Trained PyTorch model
+        loader: DataLoader for evaluation
+        device: Device to run on (cpu/cuda)
+        prior: Class prior (π) for PU risk computation
+        return_raw_outputs: If True, also return dict with y_true, y_pred, y_scores arrays
+
+    Returns:
+        If return_raw_outputs is False:
+            dict with scalar metrics
+        If return_raw_outputs is True:
+            tuple of (metrics dict, raw_outputs dict)
+            where raw_outputs has keys: y_true, y_pred, y_scores (all np.ndarray)
 
     Notes:
         * If the model outputs probabilities (in [0, 1]), we threshold at 0.5 for
@@ -730,7 +745,7 @@ def evaluate_metrics(
     except Exception:
         oracle_ce = float("nan")
 
-    return {
+    metrics = {
         "error": 1 - acc,
         "risk": risk,
         "accuracy": acc,
@@ -743,6 +758,16 @@ def evaluate_metrics(
         "oracle_ce": oracle_ce,  # Oracle GT PN Cross-Entropy (uses true labels)
         **calib_metrics,  # Unpack calibration metrics
     }
+
+    if return_raw_outputs:
+        raw_outputs = {
+            "y_true": y_true_arr,  # Ground truth labels (np.ndarray)
+            "y_pred": y_pred_arr,  # Binary predictions (np.ndarray)
+            "y_scores": y_score_arr,  # Model scores/logits (np.ndarray)
+        }
+        return metrics, raw_outputs
+    else:
+        return metrics
 
 
 # ---------------------------------------------------------------------

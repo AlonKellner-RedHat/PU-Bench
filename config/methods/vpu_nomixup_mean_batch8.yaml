@@ -20,7 +20,7 @@ vpu_nomixup_mean_batch8:
   checkpoint:
     enabled: true
     save_model: false
-    monitor: "val_f1"
+    monitor: "val_max_f1"
     mode: "max"
     early_stopping:
       enabled: true

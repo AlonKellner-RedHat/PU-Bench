@@ -47,7 +47,7 @@ pudra_naive:
   checkpoint:
     enabled: true
     save_model: false
-    monitor: "val_f1"      # Monitor validation F1 score
+    monitor: "val_max_f1"      # Monitor validation F1 score
     mode: "max"            # Maximize F1
     early_stopping:
       enabled: true

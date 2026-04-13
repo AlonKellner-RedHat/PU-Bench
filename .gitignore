@@ -58,7 +58,9 @@ results/
 results-archive/
 results_comprehensive/
 results_cartesian/
+results_phase1_extended/
 test_results/
+test_scores_output/
 logs/
 checkpoints/
 runs/
@@ -101,6 +103,9 @@ toy_meta_learning/toy_checkpoints/
 toy_meta_learning/toy_meta_output/
 toy_meta_learning/*.log
 toy_meta_learning/*.pt
+
+# Generated analysis outputs
+analysis/plots/
 
 # Temporary analysis and monitoring scripts
 scripts/monitor_*.sh
