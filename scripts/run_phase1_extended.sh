@@ -3,7 +3,7 @@
 
 OUTPUT_DIR="results_phase1_extended"
 SHUFFLE_SEED=54321  # Different from Phase 2
-NUM_WORKERS=8  # Maximize parallelization
+NUM_WORKERS=6  # Optimal balance: throughput vs RAM safety
 
 echo "============================================"
 echo "Phase 1 Extended: Comprehensive Baselines"
@@ -11,22 +11,22 @@ echo "============================================"
 echo ""
 echo "Configuration:"
 echo "  Datasets: 7 (MNIST, FashionMNIST, IMDB, 20News, Mushrooms, Spambase, Connect4)"
-echo "  Methods: 19 (13 baselines + 6 VPU variants)"
-echo "  Excluded: LAGAM (crashes), CGENPU/PULCPBF/PAN/HOLISTICPU/PULDA (too slow)"
+echo "  Methods: 18 (12 baselines + 6 VPU variants)"
+echo "  Excluded: LAGAM (crashes), CGENPU/PULCPBF/PAN/HOLISTICPU/PULDA (too slow), VAEPU (hangs on MNIST/FashionMNIST)"
 echo "  Seeds: 10"
 echo "  C values: 3 [0.1, 0.3, 0.5]"
-echo "  Total: 3,990 experiments"
+echo "  Total: 3,780 experiments"
 echo "  Workers: ${NUM_WORKERS}"
-echo "  Estimated time: ~7-10 hours (with 8 workers)"
+echo "  Estimated time: ~6-8 hours (with 8 workers)"
 echo ""
 
 mkdir -p "$OUTPUT_DIR"
 mkdir -p logs/phase1_extended
 
-# All 19 methods (LAGAM removed due to segfault, CGENPU/PULCPBF/PAN/HOLISTICPU/PULDA removed due to extreme slowness)
-# Baselines (13):
+# All 18 methods (LAGAM removed due to segfault, CGENPU/PULCPBF/PAN/HOLISTICPU/PULDA removed due to extreme slowness, VAEPU removed due to MNIST/FashionMNIST hangs)
+# Baselines (12):
 BASELINE_METHODS="nnpu,nnpusb,bbepu,lbe,puet,distpu,selfpu,p3mixe,p3mixc"
-BASELINE_METHODS+=",robustpu,vaepu,pn_naive,oracle_bce"
+BASELINE_METHODS+=",robustpu,pn_naive,oracle_bce"
 
 # VPU variants (6):
 VPU_METHODS="vpu,vpu_nomixup"

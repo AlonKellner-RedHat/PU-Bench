@@ -34,7 +34,8 @@ class PUETTrainer:
 
         # Per-seed results and logs directory (align with BaseTrainer)
         seed_value = self.params.get("seed", 42)
-        self.results_root = os.path.join("results", f"seed_{seed_value}")
+        output_dir = self.params.get("output_dir", "results")
+        self.results_root = os.path.join(output_dir, f"seed_{seed_value}")
         self.log_dir = os.path.join(self.results_root, "logs")
         os.makedirs(self.log_dir, exist_ok=True)
         log_file_name = f"{self.method}_{self.experiment_name}.log"
