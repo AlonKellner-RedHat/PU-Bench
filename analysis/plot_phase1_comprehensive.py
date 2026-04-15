@@ -24,8 +24,8 @@ from collections import defaultdict
 import pandas as pd
 
 # Configuration
-RESULTS_DIR = Path("results_comprehensive")
-OUTPUT_DIR = Path("analysis/plots/phase1_comprehensive")
+RESULTS_DIR = Path("results_phase1_extended")
+OUTPUT_DIR = Path("analysis/plots/phase1_extended")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Phase 1 datasets only
@@ -150,9 +150,10 @@ def aggregate_by_dataset_and_prior(results):
             dataset = metrics["dataset"]
             exp_name = metrics["experiment"]
 
-            # Extract true prior (e.g., trueprior0.3)
+            # Extract c value (labeled ratio) as the grouping variable
+            # Experiment names are like: MNIST_case-control_random_c0.5_seed42
             import re
-            match = re.search(r'trueprior([\d.]+)', exp_name)
+            match = re.search(r'_c([\d.]+)_', exp_name)
             if match:
                 true_prior = float(match.group(1))
             else:
@@ -186,6 +187,17 @@ def aggregate_by_dataset_and_prior(results):
 def plot_metric_comparison(summary, metric_name, metric_label, methods_to_plot, output_name):
     """Create bar plot comparing methods across datasets for a single metric."""
     datasets = sorted(summary.keys())
+
+    # Filter methods_to_plot to only those that actually exist
+    available_methods = set()
+    for dataset in summary:
+        for prior in summary[dataset]:
+            available_methods.update(summary[dataset][prior].keys())
+    methods_to_plot = [m for m in methods_to_plot if m in available_methods]
+
+    if not methods_to_plot:
+        print(f"WARNING: No methods available for {output_name}. Skipping.")
+        return
 
     fig, axes = plt.subplots(2, 4, figsize=(20, 10))
     axes = axes.flatten()
@@ -245,8 +257,23 @@ def plot_all_metrics_heatmap(summary, methods_to_plot, metric_dict, output_name,
     datasets = sorted(summary.keys())
     metrics = list(metric_dict.keys())
 
+    # Filter methods_to_plot to only those that actually exist in summary
+    # Check which methods have data across any dataset/prior
+    available_methods = set()
+    for dataset in summary:
+        for prior in summary[dataset]:
+            available_methods.update(summary[dataset][prior].keys())
+
+    methods_to_plot_filtered = [m for m in methods_to_plot if m in available_methods]
+
+    if not methods_to_plot_filtered:
+        print(f"WARNING: No methods from {methods_to_plot} found in results. Skipping {output_name}")
+        return
+
+    print(f"Plotting {len(methods_to_plot_filtered)}/{len(methods_to_plot)} methods for {output_name}")
+
     # Create data matrix: rows = datasets, cols = methods x metrics
-    method_metric_combos = [(m, met) for m in methods_to_plot for met in metrics]
+    method_metric_combos = [(m, met) for m in methods_to_plot_filtered for met in metrics]
     data_matrix = np.zeros((len(datasets), len(method_metric_combos)))
 
     for i, dataset in enumerate(datasets):
@@ -254,7 +281,7 @@ def plot_all_metrics_heatmap(summary, methods_to_plot, metric_dict, output_name,
         method_metric_means = defaultdict(list)
 
         for prior in summary[dataset]:
-            for method in methods_to_plot:
+            for method in methods_to_plot_filtered:
                 if method in summary[dataset][prior]:
                     for metric in metrics:
                         val = summary[dataset][prior][method]["mean"].get(metric, np.nan)
@@ -371,6 +398,16 @@ def main():
 
     print("Aggregating by dataset and prior...")
     summary = aggregate_by_dataset_and_prior(results)
+
+    # Debug: Show what methods are actually in the results
+    all_methods = set()
+    for dataset in summary:
+        for prior in summary[dataset]:
+            all_methods.update(summary[dataset][prior].keys())
+    print(f"\nMethods found in results ({len(all_methods)}):")
+    for method in sorted(all_methods):
+        print(f"  - {method}")
+    print()
 
     print("Creating plots...")
 

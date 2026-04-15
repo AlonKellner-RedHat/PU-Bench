@@ -3,7 +3,7 @@
 
 OUTPUT_DIR="results_phase1_extended"
 SHUFFLE_SEED=54321  # Different from Phase 2
-NUM_WORKERS=6  # Optimal balance: throughput vs RAM safety
+NUM_WORKERS=8  # Increased for faster completion
 
 echo "============================================"
 echo "Phase 1 Extended: Comprehensive Baselines"
