@@ -299,8 +299,11 @@ def main():
                     for method in method_names:
                         # Skip method_prior for methods that don't support it
                         # Only vpu_mean_prior and vpu_nomixup_mean_prior use method_prior
-                        if method_prior is not None and "mean_prior" not in method:
-                            # For non-mean_prior methods, only run with method_prior=None
+                        supports_mean_prior = "mean_prior" in method
+                        if supports_mean_prior != (method_prior is not None):
+                            # Skip if method support doesn't match the prior being used
+                            # Non-mean_prior methods: only run with method_prior=None
+                            # Mean_prior methods: only run with method_prior="auto" or 0.5
                             continue
 
                         # Build experiment config
