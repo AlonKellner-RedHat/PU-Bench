@@ -185,6 +185,8 @@
 
 ## Summary: Wins and Average Ranks
 
+### Overall Performance
+
 *Aggregated across 7 datasets and 10 metrics (70 total comparisons)*
 
 | Method | Total Wins | Avg Rank | Count |
@@ -206,6 +208,56 @@
 | Robust-PU | 0/70 | 11.64 | 70/70 |
 | PN-Naive | 0/70 | 12.31 | 70/70 |
 | Self-PU | 0/70 | 13.76 | 70/70 |
+
+### Performance by Metric Category
+
+#### Threshold-Invariant Metrics
+
+*7 datasets × 3 metrics = 21 comparisons*
+
+| Method | Wins | Avg Rank |
+|--------|------|----------|
+| Oracle-PN | 18/21 | 1.14 |
+| VPU-nomix-MP(auto) | 0/21 | 4.48 |
+| VPU-nomix-MP(0.5) | 0/21 | 5.43 |
+| VPU | 0/21 | 5.76 |
+| VPU-nomix | 0/21 | 5.90 |
+
+#### Calibration Metrics
+
+*7 datasets × 3 metrics = 21 comparisons*
+
+| Method | Wins | Avg Rank |
+|--------|------|----------|
+| Oracle-PN | 13/21 | 1.71 |
+| VPU-nomix-MP(auto) | 1/21 | 3.81 |
+| VPU-nomix-MP(0.5) | 2/21 | 4.81 |
+| VPU-MP(auto) | 0/21 | 6.24 |
+| VPU | 0/21 | 6.38 |
+
+#### Cross-Entropy
+
+*7 datasets × 1 metrics = 7 comparisons*
+
+| Method | Wins | Avg Rank |
+|--------|------|----------|
+| Oracle-PN | 6/7 | 1.29 |
+| VPU-nomix-MP(auto) | 0/7 | 3.71 |
+| VPU-nomix-MP(0.5) | 0/7 | 5.14 |
+| VPU-nomix | 0/7 | 5.29 |
+| VPU-MP(auto) | 0/7 | 5.71 |
+
+#### Speed Metrics
+
+*7 datasets × 3 metrics = 21 comparisons*
+
+| Method | Wins | Avg Rank |
+|--------|------|----------|
+| P3Mix-C | 6/21 | 3.86 |
+| P3Mix-E | 5/21 | 4.10 |
+| VPU-nomix-MP(0.5) | 1/21 | 5.05 |
+| VPU-nomix-MP(auto) | 0/21 | 6.43 |
+| VPU-nomix | 0/21 | 6.48 |
 
 ---
 

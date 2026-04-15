@@ -254,18 +254,32 @@ def generate_table_markdown(summary):
     datasets = sorted([ds for ds in PHASE1_DATASETS if ds in summary])
     methods = [m for m in METHOD_ORDER if any(m in summary[ds] for ds in datasets)]
 
-    metrics = [
-        ("auc", "AUC ↑", False),
-        ("ap", "AP ↑", False),
-        ("max_f1", "Max F1 ↑", False),
-        ("ece", "ECE ↓", True),
-        ("brier", "Brier ↓", True),
-        ("anice", "ANICE ↓", True),
-        ("oracle_ce", "Oracle CE ↓", True),
-        ("best_epoch", "Epochs ↓", True),
-        ("time_to_best", "Time to Best (s) ↓", True),
-        ("time_per_epoch", "Time/Epoch (s) ↓", True),
-    ]
+    # Metric definitions with categories
+    METRIC_CATEGORIES = {
+        "threshold_invariant": [
+            ("auc", "AUC ↑", False),
+            ("ap", "AP ↑", False),
+            ("max_f1", "Max F1 ↑", False),
+        ],
+        "calibration": [
+            ("ece", "ECE ↓", True),
+            ("brier", "Brier ↓", True),
+            ("anice", "ANICE ↓", True),
+        ],
+        "cross_entropy": [
+            ("oracle_ce", "Oracle CE ↓", True),
+        ],
+        "speed": [
+            ("best_epoch", "Epochs ↓", True),
+            ("time_to_best", "Time to Best (s) ↓", True),
+            ("time_per_epoch", "Time/Epoch (s) ↓", True),
+        ],
+    }
+
+    # Flatten for table generation
+    metrics = []
+    for category_metrics in METRIC_CATEGORIES.values():
+        metrics.extend(category_metrics)
 
     # Count actual methods that will be included
     num_methods = len(methods)
@@ -352,13 +366,16 @@ def generate_table_markdown(summary):
     lines.append("")
     lines.append("## Summary: Wins and Average Ranks")
     lines.append("")
+
+    # Overall wins and ranks
+    lines.append("### Overall Performance")
+    lines.append("")
     lines.append(f"*Aggregated across {len(datasets)} datasets and {num_metrics} metrics ({total_comparisons} total comparisons)*")
     lines.append("")
 
     # Count wins and compute average ranks
-    total_comparisons = len(datasets) * len([m for m, _, _ in metrics])
-    method_wins = defaultdict(int)
-    method_ranks = defaultdict(list)
+    method_wins_overall = defaultdict(int)
+    method_ranks_overall = defaultdict(list)
 
     for dataset in datasets:
         for metric_key, _, lower_is_better in metrics:
@@ -374,9 +391,9 @@ def generate_table_markdown(summary):
             if values:
                 values.sort(reverse=not lower_is_better)
                 for rank, (_, method) in enumerate(values, 1):
-                    method_ranks[method].append(rank)
+                    method_ranks_overall[method].append(rank)
                     if rank == 1:
-                        method_wins[method] += 1
+                        method_wins_overall[method] += 1
 
     lines.append("| Method | Total Wins | Avg Rank | Count |")
     lines.append("|--------|-----------|----------|-------|")
@@ -384,10 +401,10 @@ def generate_table_markdown(summary):
     # Sort by average rank
     method_stats = []
     for method in methods:
-        if method in method_ranks:
-            avg_rank = np.mean(method_ranks[method])
-            wins = method_wins[method]
-            count = len(method_ranks[method])
+        if method in method_ranks_overall:
+            avg_rank = np.mean(method_ranks_overall[method])
+            wins = method_wins_overall[method]
+            count = len(method_ranks_overall[method])
             method_stats.append((avg_rank, wins, method, count))
 
     method_stats.sort()  # Sort by average rank (ascending)
@@ -396,6 +413,69 @@ def generate_table_markdown(summary):
         lines.append(f"| {METHOD_LABELS[method]} | {wins}/{total_comparisons} | {avg_rank:.2f} | {count}/{total_comparisons} |")
 
     lines.append("")
+
+    # Per-category wins and ranks
+    lines.append("### Performance by Metric Category")
+    lines.append("")
+
+    category_labels = {
+        "threshold_invariant": "Threshold-Invariant Metrics",
+        "calibration": "Calibration Metrics",
+        "cross_entropy": "Cross-Entropy",
+        "speed": "Speed Metrics",
+    }
+
+    for category_name, category_metrics in METRIC_CATEGORIES.items():
+        category_label = category_labels[category_name]
+        category_metric_keys = [m[0] for m in category_metrics]
+        num_category_metrics = len(category_metric_keys)
+        category_comparisons = len(datasets) * num_category_metrics
+
+        lines.append(f"#### {category_label}")
+        lines.append("")
+        lines.append(f"*{len(datasets)} datasets × {num_category_metrics} metrics = {category_comparisons} comparisons*")
+        lines.append("")
+
+        # Count wins and ranks for this category
+        method_wins_cat = defaultdict(int)
+        method_ranks_cat = defaultdict(list)
+
+        for dataset in datasets:
+            for metric_key, _, lower_is_better in category_metrics:
+                # Get all valid values
+                values = []
+                for method in methods:
+                    if method in summary[dataset]:
+                        mean_val = summary[dataset][method]["mean"].get(metric_key, np.nan)
+                        if not np.isnan(mean_val):
+                            values.append((mean_val, method))
+
+                # Sort and assign ranks
+                if values:
+                    values.sort(reverse=not lower_is_better)
+                    for rank, (_, method) in enumerate(values, 1):
+                        method_ranks_cat[method].append(rank)
+                        if rank == 1:
+                            method_wins_cat[method] += 1
+
+        lines.append("| Method | Wins | Avg Rank |")
+        lines.append("|--------|------|----------|")
+
+        # Sort by average rank
+        method_stats_cat = []
+        for method in methods:
+            if method in method_ranks_cat:
+                avg_rank = np.mean(method_ranks_cat[method])
+                wins = method_wins_cat[method]
+                method_stats_cat.append((avg_rank, wins, method))
+
+        method_stats_cat.sort()  # Sort by average rank (ascending)
+
+        # Show top 5 methods for each category
+        for avg_rank, wins, method in method_stats_cat[:5]:
+            lines.append(f"| {METHOD_LABELS[method]} | {wins}/{category_comparisons} | {avg_rank:.2f} |")
+
+        lines.append("")
 
     # Timing statistics table
     lines.append("---")
