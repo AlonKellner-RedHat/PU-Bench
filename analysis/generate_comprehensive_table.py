@@ -471,8 +471,8 @@ def generate_table_markdown(summary):
 
         method_stats_cat.sort()  # Sort by average rank (ascending)
 
-        # Show top 5 methods for each category
-        for avg_rank, wins, method in method_stats_cat[:5]:
+        # Show all methods for each category
+        for avg_rank, wins, method in method_stats_cat:
             lines.append(f"| {METHOD_LABELS[method]} | {wins}/{category_comparisons} | {avg_rank:.2f} |")
 
         lines.append("")
