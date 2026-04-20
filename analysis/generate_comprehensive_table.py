@@ -261,6 +261,12 @@ def generate_table_markdown(summary):
             ("ap", "AP ↑", False),
             ("max_f1", "Max F1 ↑", False),
         ],
+        "threshold_dependent": [
+            ("accuracy", "Accuracy ↑", False),
+            ("f1", "F1 ↑", False),
+            ("precision", "Precision ↑", False),
+            ("recall", "Recall ↑", False),
+        ],
         "calibration": [
             ("ece", "ECE ↓", True),
             ("brier", "Brier ↓", True),
@@ -420,6 +426,7 @@ def generate_table_markdown(summary):
 
     category_labels = {
         "threshold_invariant": "Threshold-Invariant Metrics",
+        "threshold_dependent": "Threshold-Dependent Metrics",
         "calibration": "Calibration Metrics",
         "cross_entropy": "Cross-Entropy",
         "speed": "Speed Metrics",

@@ -61,19 +61,22 @@ def load_20news_pu(
     data_home = os.path.join(data_dir, "20news_sklearn")
 
     # Download 20 Newsgroups
+    # IMPORTANT: Use fixed seed 42 to match precomputed embeddings order
+    # (Embeddings were generated with shuffle=True, random_state=42)
+    # Additional shuffling with experiment seed happens after embeddings are loaded
     train_bunch = fetch_20newsgroups(
         subset="train",
         data_home=data_home,
         remove=(),
         shuffle=True,
-        random_state=random_seed,
+        random_state=42,  # Fixed seed matching embeddings file
     )
     test_bunch = fetch_20newsgroups(
         subset="test",
         data_home=data_home,
         remove=(),
         shuffle=True,
-        random_state=random_seed,
+        random_state=42,  # Fixed seed matching embeddings file
     )
 
     # Map category -> binary label based on prefix sets
@@ -157,6 +160,16 @@ def load_20news_pu(
 
     X_train = _l2_normalize(X_train)
     X_test = _l2_normalize(X_test)
+
+    # Shuffle train and test data with experiment seed
+    # (Now that embeddings and labels are properly aligned)
+    train_shuffle_idx = rng.permutation(len(X_train))
+    X_train = X_train[train_shuffle_idx]
+    y_train_bin = y_train_bin[train_shuffle_idx]
+
+    test_shuffle_idx = rng.permutation(len(X_test))
+    X_test = X_test[test_shuffle_idx]
+    y_test_bin = y_test_bin[test_shuffle_idx]
 
     # Train/Val split
     X_train, y_train_bin, X_val, y_val_bin = split_train_val(

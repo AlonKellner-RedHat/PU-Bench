@@ -1,6 +1,0 @@
-Formula,κ (fitted),MAE,R²
-Linear boost,0.081,0.3069,-0.2755
-Multiplicative (current),0.078,0.3095,-0.2971
-Inverse c,0.022,0.3032,-0.2474
-Sqrt boost,-0.023,0.3086,-0.3035
-Sampling correction,-0.835,0.2880,-0.1281

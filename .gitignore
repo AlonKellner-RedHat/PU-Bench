@@ -58,7 +58,10 @@ results/
 results-archive/
 results_comprehensive/
 results_cartesian/
+results_robustness/
 results_phase1_extended/
+results_phase3/
+results_cartesian_test/
 test_results/
 test_scores_output/
 logs/
