@@ -4,7 +4,7 @@ random_seeds: [42, 456, 789, 1024, 2048, 3000, 4096, 5555, 6789, 8192]  # 10 see
 c_values: [0.1, 0.3, 0.5]  # 3 values
 
 # Method prior grid for VPU mean-prior variants
-method_prior_values: [null, "auto", 0.5]  # null = methods without mean_prior, auto = computed from labeled data, 0.5 = fixed
+method_prior_values: [null, "auto", 0.5, 0.69]  # null = methods without mean_prior, auto = computed from labeled data, 0.5 = fixed
 
 # PU setup
 scenarios: [case-control]

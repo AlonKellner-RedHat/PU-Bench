@@ -33,8 +33,10 @@ METHOD_LABELS = {
     "vpu_nomixup": "VPU-nomix",
     "vpu_mean_prior_auto": "VPU-MP(auto)",
     "vpu_mean_prior_0.5": "VPU-MP(0.5)",
+    "vpu_mean_prior_0.69": "VPU-MP(0.69)",
     "vpu_nomixup_mean_prior_auto": "VPU-nomix-MP(auto)",
     "vpu_nomixup_mean_prior_0.5": "VPU-nomix-MP(0.5)",
+    "vpu_nomixup_mean_prior_0.69": "VPU-nomix-MP(0.69)",
 }
 
 # Method ordering (by category)
@@ -45,9 +47,9 @@ METHOD_ORDER = [
     # Recent PU methods
     "selfpu", "p3mixe", "p3mixc", "robustpu",
     # VPU variants (no mixup)
-    "vpu_nomixup", "vpu_nomixup_mean_prior_auto", "vpu_nomixup_mean_prior_0.5",
+    "vpu_nomixup", "vpu_nomixup_mean_prior_auto", "vpu_nomixup_mean_prior_0.5", "vpu_nomixup_mean_prior_0.69",
     # VPU variants (with mixup)
-    "vpu", "vpu_mean_prior_auto", "vpu_mean_prior_0.5",
+    "vpu", "vpu_mean_prior_auto", "vpu_mean_prior_0.5", "vpu_mean_prior_0.69",
     # Oracles
     "pn_naive", "oracle_bce",
 ]
@@ -96,7 +98,9 @@ def load_phase1_results():
 
             # Determine method identifier
             if method_key in ["vpu_nomixup_mean_prior", "vpu_mean_prior"]:
-                if "methodprior0.5" in json_file.name:
+                if "methodprior0.69" in json_file.name:
+                    method_id = f"{method_key}_0.69"
+                elif "methodprior0.5" in json_file.name:
                     method_id = f"{method_key}_0.5"
                 elif "methodprior1" in json_file.name:
                     method_id = f"{method_key}_1.0"

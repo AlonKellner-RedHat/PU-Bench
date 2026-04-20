@@ -4,7 +4,7 @@
 
 OUTPUT_DIR="results_phase1_extended"
 SHUFFLE_SEED=54321  # Same seed as original Phase 1 Extended
-NUM_WORKERS=6
+NUM_WORKERS=8
 
 echo "============================================"
 echo "Phase 1 Extended: Adding method_prior=0.69"
@@ -19,7 +19,7 @@ echo "  Seeds: 10"
 echo "  C values: 3 [0.1, 0.3, 0.5]"
 echo "  Additional experiments: 420 (7 × 10 × 3 × 2)"
 echo "  Workers: ${NUM_WORKERS}"
-echo "  Estimated time: ~40 minutes (with 6 workers)"
+echo "  Estimated time: ~30 minutes (with 8 workers)"
 echo ""
 echo "Note: --resume flag will skip already-completed experiments"
 echo ""
