@@ -5,7 +5,7 @@ c_values: [0.01, 0.1, 0.3, 0.5, 0.7, 0.9, 0.99]  # 7 label frequencies
 target_prevalence_train_values: [0.01, 0.1, 0.3, 0.5, 0.7, 0.9, 0.99]  # 7 true priors
 
 # Method prior grid for VPU mean-prior variants
-method_prior_values: [null, "auto", 0.5, 0.69]  # null = methods without mean_prior, auto = computed from labeled data, 0.5 = fixed
+method_prior_values: [null, "auto", 0.353, 0.5, 0.69, 1.0]  # null = methods without mean_prior, auto = computed from labeled data, 0.5 = fixed
 
 # PU setup
 scenarios: [case-control]

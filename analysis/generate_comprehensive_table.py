@@ -5,6 +5,7 @@ Generate comprehensive Phase 1 Extended results table with all methods and basel
 Similar style to PHASE1_FOCUSED_TABLE.md but with all 19 methods and timing metrics.
 """
 
+import sys
 import json
 import numpy as np
 from pathlib import Path
@@ -32,11 +33,17 @@ METHOD_LABELS = {
     "vpu": "VPU",
     "vpu_nomixup": "VPU-nomix",
     "vpu_mean_prior_auto": "VPU-MP(auto)",
+    "vpu_mean_prior_0.353": "VPU-MP(0.353)",
     "vpu_mean_prior_0.5": "VPU-MP(0.5)",
     "vpu_mean_prior_0.69": "VPU-MP(0.69)",
+    "vpu_mean_prior_1.0": "VPU-MP(1.0)",
+    "vpu_mean_prior_0.353;0.69": "VPU-MP(0.353;0.69)",
     "vpu_nomixup_mean_prior_auto": "VPU-nomix-MP(auto)",
+    "vpu_nomixup_mean_prior_0.353": "VPU-nomix-MP(0.353)",
     "vpu_nomixup_mean_prior_0.5": "VPU-nomix-MP(0.5)",
     "vpu_nomixup_mean_prior_0.69": "VPU-nomix-MP(0.69)",
+    "vpu_nomixup_mean_prior_1.0": "VPU-nomix-MP(1.0)",
+    "vpu_nomixup_mean_prior_0.353;0.69": "VPU-nomix-MP(0.353;0.69)",
 }
 
 # Method ordering (by category)
@@ -47,9 +54,11 @@ METHOD_ORDER = [
     # Recent PU methods
     "selfpu", "p3mixe", "p3mixc", "robustpu",
     # VPU variants (no mixup)
-    "vpu_nomixup", "vpu_nomixup_mean_prior_auto", "vpu_nomixup_mean_prior_0.5", "vpu_nomixup_mean_prior_0.69",
+    "vpu_nomixup", "vpu_nomixup_mean_prior_auto", "vpu_nomixup_mean_prior_0.353", "vpu_nomixup_mean_prior_0.5", "vpu_nomixup_mean_prior_0.69", "vpu_nomixup_mean_prior_1.0",
+    "vpu_nomixup_mean_prior_0.353;0.69",  # Adaptive (Phase 1 note: no π variation, uses dataset-specific best)
     # VPU variants (with mixup)
-    "vpu", "vpu_mean_prior_auto", "vpu_mean_prior_0.5", "vpu_mean_prior_0.69",
+    "vpu", "vpu_mean_prior_auto", "vpu_mean_prior_0.353", "vpu_mean_prior_0.5", "vpu_mean_prior_0.69", "vpu_mean_prior_1.0",
+    "vpu_mean_prior_0.353;0.69",  # Adaptive (Phase 1 note: no π variation, uses dataset-specific best)
     # Oracles
     "pn_naive", "oracle_bce",
 ]
@@ -98,10 +107,12 @@ def load_phase1_results():
 
             # Determine method identifier
             if method_key in ["vpu_nomixup_mean_prior", "vpu_mean_prior"]:
-                if "methodprior0.69" in json_file.name:
-                    method_id = f"{method_key}_0.69"
+                if "methodprior0.353" in json_file.name:
+                    method_id = f"{method_key}_0.353"
                 elif "methodprior0.5" in json_file.name:
                     method_id = f"{method_key}_0.5"
+                elif "methodprior0.69" in json_file.name:
+                    method_id = f"{method_key}_0.69"
                 elif "methodprior1" in json_file.name:
                     method_id = f"{method_key}_1.0"
                 else:
@@ -188,6 +199,57 @@ def validate_methods(results):
         complete_methods.add(method)
 
     return complete_methods, incomplete_methods
+
+
+def create_adaptive_methods(results):
+    """Create virtual adaptive methods from Phase 1 results.
+
+    Adaptive methods select constant based on dataset's natural prior (π):
+    - If π < 0.5: use 0.353
+    - If π >= 0.5: use 0.69
+
+    Natural priors for Phase 1 datasets (from test sets):
+    - 20News: π=0.5648 -> 0.69
+    - Connect4: π=0.6583 -> 0.69
+    - FashionMNIST: π=0.5000 -> 0.69
+    - IMDB: π=0.5000 -> 0.69
+    - MNIST: π=0.4926 -> 0.353
+    - Mushrooms: π=0.4818 -> 0.353
+    - Spambase: π=0.3941 -> 0.353
+    """
+    # Dataset natural priors (computed from test set class distribution)
+    DATASET_PRIORS = {
+        "20News": 0.5648,
+        "Connect4": 0.6583,
+        "FashionMNIST": 0.5000,
+        "IMDB": 0.5000,
+        "MNIST": 0.4926,
+        "Mushrooms": 0.4818,
+        "Spambase": 0.3941,
+    }
+
+    # Determine which constant to use for each dataset based on natural prior
+    dataset_constant = {
+        dataset: "0.353" if prior < 0.5 else "0.69"
+        for dataset, prior in DATASET_PRIORS.items()
+    }
+
+    # Create adaptive method results by copying from the appropriate constant for each dataset
+    for exp_key, methods in results.items():
+        dataset = next(iter(methods.values()))["dataset"]
+        constant = dataset_constant.get(dataset, "0.69")  # Default to 0.69 if unknown
+
+        # VPU-nomix-MP(0.353;0.69): use dataset's constant based on natural prior
+        source_nomix = f"vpu_nomixup_mean_prior_{constant}"
+        if source_nomix in methods:
+            results[exp_key]["vpu_nomixup_mean_prior_0.353;0.69"] = methods[source_nomix].copy()
+
+        # VPU-MP(0.353;0.69): use dataset's constant based on natural prior
+        source_mixup = f"vpu_mean_prior_{constant}"
+        if source_mixup in methods:
+            results[exp_key]["vpu_mean_prior_0.353;0.69"] = methods[source_mixup].copy()
+
+    return results
 
 
 def aggregate_by_dataset(results):
@@ -533,35 +595,38 @@ def generate_table_markdown(summary):
 
 
 def main():
-    print("Loading Phase 1 Extended results...")
+    print("Loading Phase 1 Extended results...", file=sys.stderr)
     results = load_phase1_results()
-    print(f"Loaded {len(results)} experiment runs")
+    print(f"Loaded {len(results)} experiment runs", file=sys.stderr)
 
-    print("Validating method completeness...")
+    print("Creating adaptive methods...", file=sys.stderr)
+    results = create_adaptive_methods(results)
+
+    print("Validating method completeness...", file=sys.stderr)
     complete_methods, incomplete_methods = validate_methods(results)
-    print(f"Complete methods: {len(complete_methods)}")
+    print(f"Complete methods: {len(complete_methods)}", file=sys.stderr)
     if incomplete_methods:
-        print(f"Incomplete methods: {len(incomplete_methods)}")
+        print(f"Incomplete methods: {len(incomplete_methods)}", file=sys.stderr)
         for method, reason in incomplete_methods.items():
-            print(f"  - {method}: {reason}")
+            print(f"  - {method}: {reason}", file=sys.stderr)
 
     # Update excluded methods with incomplete ones
     global EXCLUDED_METHODS
     EXCLUDED_METHODS.update(incomplete_methods)
 
-    print("Aggregating by dataset...")
+    print("Aggregating by dataset...", file=sys.stderr)
     summary = aggregate_by_dataset(results)
 
-    print("Generating markdown table...")
+    print("Generating markdown table...", file=sys.stderr)
     markdown = generate_table_markdown(summary)
 
     output_path = Path("analysis/PHASE1_EXTENDED_COMPREHENSIVE_TABLE.md")
     with open(output_path, "w") as f:
         f.write(markdown)
 
-    print(f"\n✅ Table saved to: {output_path}")
-    print(f"\nDatasets: {len(summary)}")
-    print(f"Methods found: {len({m for ds in summary.values() for m in ds.keys()})}")
+    print(f"\n✅ Table saved to: {output_path}", file=sys.stderr)
+    print(f"\nDatasets: {len(summary)}", file=sys.stderr)
+    print(f"Methods found: {len({m for ds in summary.values() for m in ds.keys()})}", file=sys.stderr)
 
 
 if __name__ == "__main__":

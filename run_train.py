@@ -161,7 +161,7 @@ def _build_experiment_name(
 
 
 def _method_already_completed(exp_name: str, method: str, seed: int, output_dir: str = "results") -> bool:
-    """Check if a method has already been run for this experiment."""
+    """Check if a method has already been run AND completed successfully for this experiment."""
     import json
     import os
 
@@ -172,7 +172,30 @@ def _method_already_completed(exp_name: str, method: str, seed: int, output_dir:
     try:
         with open(result_file, "r") as f:
             data = json.load(f)
-        return method in data.get("runs", {})
+
+        # Check if method exists in runs
+        if method not in data.get("runs", {}):
+            return False
+
+        # Check if method run has required fields indicating successful completion
+        method_data = data["runs"][method]
+
+        # Must have 'best' field with metrics
+        if "best" not in method_data:
+            return False
+
+        # Must have metrics in best
+        if "metrics" not in method_data.get("best", {}):
+            return False
+
+        # Must have at least test_auc metric (core metric)
+        metrics = method_data["best"]["metrics"]
+        if "test_auc" not in metrics:
+            return False
+
+        # Method successfully completed
+        return True
+
     except Exception:
         return False
 
