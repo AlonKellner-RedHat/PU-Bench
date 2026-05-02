@@ -83,6 +83,12 @@ class P3MIXETrainer(BaseTrainer):
         self.p_update_loader = DataLoader(p_dataset, batch_size=1000, shuffle=False)
 
     def _build_p3mix_model(self):
+        # Use method_prior from config if specified, otherwise use computed prior
+        if hasattr(self, 'method_prior') and self.method_prior is not None:
+            prior = self.method_prior
+        else:
+            prior = self.prior
+
         model_map = {
             "CIFAR10": "MixCNN_CIFAR10",
             "FashionMNIST": "MixCNN_FashionMNIST",
@@ -102,7 +108,7 @@ class P3MIXETrainer(BaseTrainer):
         from backbone import mix_models
 
         selected_model_cls = getattr(mix_models, mix_model_name)
-        self.model = selected_model_cls(prior=self.prior).to(self.device)
+        self.model = selected_model_cls(prior=prior).to(self.device)
 
         # Ensure dynamic model is built before creating optimizer
         try:
@@ -146,7 +152,7 @@ class P3MIXETrainer(BaseTrainer):
                 ):
                     if int(getattr(fc, "out_features", 0)) == 1:
                         with torch.no_grad():
-                            fc.bias.fill_(_logit(self.prior))
+                            fc.bias.fill_(_logit(prior))
         except Exception:
             pass
         lr = self.params.get("lr", 1e-3)

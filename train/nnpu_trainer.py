@@ -16,9 +16,14 @@ class NNPUTrainer(BaseTrainer):
 
     # Required interfaces
     def create_criterion(self):
+        # Use method_prior from config if specified, otherwise use computed prior
+        if hasattr(self, 'method_prior') and self.method_prior is not None:
+            prior = self.method_prior
+        else:
+            prior = self.prior
         gamma = self.params.get("gamma", 1.0)
         beta = self.params.get("beta", 0.0)
-        return PULoss(self.prior, loss="sigmoid", nnpu=True, gamma=gamma, beta=beta)
+        return PULoss(prior, loss="sigmoid", nnpu=True, gamma=gamma, beta=beta)
 
     def train_one_epoch(self, epoch_idx: int):
         """Training loop for one epoch (nnPU)."""

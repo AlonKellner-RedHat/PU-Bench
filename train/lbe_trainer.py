@@ -19,9 +19,15 @@ class LBETrainer(BaseTrainer):
     def __init__(self, method: str, experiment: str, params: dict):
         super().__init__(method, experiment, params)
 
+        # Use method_prior from config if specified, otherwise use computed prior
+        if hasattr(self, 'method_prior') and self.method_prior is not None:
+            prior = self.method_prior
+        else:
+            prior = self.prior
+
         # LBE requires two models: one for P(y=1|x) and one for eta(x)
         self.eta_model = select_model(
-            method=self.method, params=self.params, prior=self.prior
+            method=self.method, params=self.params, prior=prior
         ).to(self.device)
 
         # Initialize bias from prior for eta_model if single-logit head
@@ -41,7 +47,7 @@ class LBETrainer(BaseTrainer):
                 ):
                     if int(getattr(fc_eta, "out_features", 0)) == 1:
                         with torch.no_grad():
-                            fc_eta.bias.fill_(_logit(self.prior))
+                            fc_eta.bias.fill_(_logit(prior))
         except Exception:
             pass
 

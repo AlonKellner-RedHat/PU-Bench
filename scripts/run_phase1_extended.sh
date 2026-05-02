@@ -45,7 +45,7 @@ function run_worker() {
 
     echo "Starting Phase 1 Extended worker ${worker_id}..."
 
-    python run_train.py \
+    .venv/bin/python run_train.py \
         --dataset-config $CONFIGS \
         --methods "$ALL_METHODS" \
         --output-dir "$OUTPUT_DIR" \

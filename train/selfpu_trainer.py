@@ -28,13 +28,19 @@ class SelfPUTrainer(BaseTrainer):
     def __init__(self, method: str, experiment: str, params: dict[str, Any]):
         super().__init__(method, experiment, params)
 
+        # Use method_prior from config if specified, otherwise use computed prior
+        if hasattr(self, 'method_prior') and self.method_prior is not None:
+            prior = self.method_prior
+        else:
+            prior = self.prior
+
         # Initialize Self-PU and Mean Teacher specific parameters
         self._init_selfpu_params()
         self._prepare_selfpu_data()
 
         # Create second model for dual-model architecture
         self.model2 = select_model(
-            method=self.method, params=self.params, prior=self.prior
+            method=self.method, params=self.params, prior=prior
         ).to(self.device)
 
         # Initialize bias from prior for model2 if it has a single-logit head
@@ -54,7 +60,7 @@ class SelfPUTrainer(BaseTrainer):
                 ):
                     if int(getattr(fc2, "out_features", 0)) == 1:
                         with torch.no_grad():
-                            fc2.bias.fill_(_logit(self.prior))
+                            fc2.bias.fill_(_logit(prior))
         except Exception:
             pass
 
@@ -85,7 +91,7 @@ class SelfPUTrainer(BaseTrainer):
         self._initialize_ema_models()
 
         # PU loss for the unlabeled part
-        self.criterion_unlabeled = PULoss(self.prior, nnpu=True, loss="sigmoid")
+        self.criterion_unlabeled = PULoss(prior, nnpu=True, loss="sigmoid")
 
         # Disable early stopping before the final stage begins
         if getattr(self, "checkpoint_handler", None):

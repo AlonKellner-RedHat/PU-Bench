@@ -35,13 +35,17 @@ METHOD_LABELS = {
     "vpu_mean_prior_auto": "VPU-MP(auto)",
     "vpu_mean_prior_0.353": "VPU-MP(0.353)",
     "vpu_mean_prior_0.5": "VPU-MP(0.5)",
+    "vpu_mean_prior_0.6666": "VPU-MP(0.6666)",
     "vpu_mean_prior_0.69": "VPU-MP(0.69)",
+    "vpu_mean_prior_0.77": "VPU-MP(0.77)",
     "vpu_mean_prior_1.0": "VPU-MP(1.0)",
     "vpu_mean_prior_0.353;0.69": "VPU-MP(0.353;0.69)",
     "vpu_nomixup_mean_prior_auto": "VPU-nomix-MP(auto)",
     "vpu_nomixup_mean_prior_0.353": "VPU-nomix-MP(0.353)",
     "vpu_nomixup_mean_prior_0.5": "VPU-nomix-MP(0.5)",
+    "vpu_nomixup_mean_prior_0.6666": "VPU-nomix-MP(0.6666)",
     "vpu_nomixup_mean_prior_0.69": "VPU-nomix-MP(0.69)",
+    "vpu_nomixup_mean_prior_0.77": "VPU-nomix-MP(0.77)",
     "vpu_nomixup_mean_prior_1.0": "VPU-nomix-MP(1.0)",
     "vpu_nomixup_mean_prior_0.353;0.69": "VPU-nomix-MP(0.353;0.69)",
 }
@@ -54,10 +58,10 @@ METHOD_ORDER = [
     # Recent PU methods
     "selfpu", "p3mixe", "p3mixc", "robustpu",
     # VPU variants (no mixup)
-    "vpu_nomixup", "vpu_nomixup_mean_prior_auto", "vpu_nomixup_mean_prior_0.353", "vpu_nomixup_mean_prior_0.5", "vpu_nomixup_mean_prior_0.69", "vpu_nomixup_mean_prior_1.0",
+    "vpu_nomixup", "vpu_nomixup_mean_prior_auto", "vpu_nomixup_mean_prior_0.353", "vpu_nomixup_mean_prior_0.5", "vpu_nomixup_mean_prior_0.6666", "vpu_nomixup_mean_prior_0.69", "vpu_nomixup_mean_prior_0.77", "vpu_nomixup_mean_prior_1.0",
     "vpu_nomixup_mean_prior_0.353;0.69",  # Adaptive (Phase 1 note: no π variation, uses dataset-specific best)
     # VPU variants (with mixup)
-    "vpu", "vpu_mean_prior_auto", "vpu_mean_prior_0.353", "vpu_mean_prior_0.5", "vpu_mean_prior_0.69", "vpu_mean_prior_1.0",
+    "vpu", "vpu_mean_prior_auto", "vpu_mean_prior_0.353", "vpu_mean_prior_0.5", "vpu_mean_prior_0.6666", "vpu_mean_prior_0.69", "vpu_mean_prior_0.77", "vpu_mean_prior_1.0",
     "vpu_mean_prior_0.353;0.69",  # Adaptive (Phase 1 note: no π variation, uses dataset-specific best)
     # Oracles
     "pn_naive", "oracle_bce",
@@ -111,8 +115,12 @@ def load_phase1_results():
                     method_id = f"{method_key}_0.353"
                 elif "methodprior0.5" in json_file.name:
                     method_id = f"{method_key}_0.5"
+                elif "methodprior0.6666" in json_file.name:
+                    method_id = f"{method_key}_0.6666"
                 elif "methodprior0.69" in json_file.name:
                     method_id = f"{method_key}_0.69"
+                elif "methodprior0.77" in json_file.name:
+                    method_id = f"{method_key}_0.77"
                 elif "methodprior1" in json_file.name:
                     method_id = f"{method_key}_1.0"
                 else:

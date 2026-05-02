@@ -61,6 +61,7 @@ results_cartesian/
 results_robustness/
 results_phase1_extended/
 results_phase3/
+results_phase4/
 results_cartesian_test/
 test_results/
 test_scores_output/
@@ -73,6 +74,10 @@ outputs/
 # Ignore root-level JSON files (often experiment summaries), but keep config JSONs if any
 *.json
 !config/**/*.json
+
+# Config backup files
+*.bak
+*.bak2
 
 # Datasets (Downloaded data)
 datasets/

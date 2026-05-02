@@ -32,12 +32,17 @@ class DistPUTrainer(BaseTrainer):
     # Stage switching & Criterion creation
     def _create_criterion_for_stage(self, stage_params: dict[str, Any]):
         """Return loss function based on stage parameters."""
+        # Use method_prior from config if specified, otherwise use computed prior
+        if hasattr(self, 'method_prior') and self.method_prior is not None:
+            prior = self.method_prior
+        else:
+            prior = self.prior
         gamma = stage_params.get("gamma", 1.0)
 
         # Basic distribution loss
         num_bins = stage_params.get("num_bins", 1)
         base_loss = LabelDistributionLoss(
-            self.prior, num_bins=num_bins, device=self.device
+            prior, num_bins=num_bins, device=self.device
         )
 
         # If in warm-up stage, allow adding entropy loss (co_mu)

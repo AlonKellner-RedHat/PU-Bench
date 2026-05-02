@@ -67,6 +67,14 @@ class RobustPUTrainer(BaseTrainer):
 
     def __init__(self, method: str, experiment: str, params: dict):
         super().__init__(method, experiment, params)
+
+        # Use method_prior from config if specified, otherwise use computed prior
+        # Store it as an instance variable for use throughout training
+        if hasattr(self, 'method_prior') and self.method_prior is not None:
+            self._effective_prior = self.method_prior
+        else:
+            self._effective_prior = self.prior
+
         self.pre_train_params = self.params.get("pre_train", {})
         self.main_train_params = self.params.get("main_train", {})
 
@@ -158,7 +166,7 @@ class RobustPUTrainer(BaseTrainer):
         # Use nnPU or BCE loss based on config
         pre_loss = self.pre_train_params.get("loss", "nnpu")
         if pre_loss == "nnpu":
-            self.criterion = PULoss(self.prior, loss="sigmoid", nnpu=True)
+            self.criterion = PULoss(self._effective_prior, loss="sigmoid", nnpu=True)
         else:
             self.criterion = nn.BCEWithLogitsLoss()
 
@@ -182,14 +190,14 @@ class RobustPUTrainer(BaseTrainer):
 
             # Print metrics every epoch (now with validation metrics if available)
             train_metrics = evaluate_metrics(
-                self.model, self.train_loader, self.device, self.prior
+                self.model, self.train_loader, self.device, self._effective_prior
             )
             test_metrics = evaluate_metrics(
-                self.model, self.test_loader, self.device, self.prior
+                self.model, self.test_loader, self.device, self._effective_prior
             )
             val_metrics = (
                 evaluate_metrics(
-                    self.model, self.validation_loader, self.device, self.prior
+                    self.model, self.validation_loader, self.device, self._effective_prior
                 )
                 if self.validation_loader is not None
                 else None
@@ -263,14 +271,14 @@ class RobustPUTrainer(BaseTrainer):
                 # Log metrics every epoch
                 self.global_epoch += 1
                 train_metrics = evaluate_metrics(
-                    self.model, self.train_loader, self.device, self.prior
+                    self.model, self.train_loader, self.device, self._effective_prior
                 )
                 test_metrics = evaluate_metrics(
-                    self.model, self.test_loader, self.device, self.prior
+                    self.model, self.test_loader, self.device, self._effective_prior
                 )
                 val_metrics = (
                     evaluate_metrics(
-                        self.model, self.validation_loader, self.device, self.prior
+                        self.model, self.validation_loader, self.device, self._effective_prior
                     )
                     if self.validation_loader is not None
                     else None
@@ -433,7 +441,7 @@ class RobustPUTrainer(BaseTrainer):
         if loss_type == "bce":
             criterion = nn.BCEWithLogitsLoss(reduction="none")
         else:
-            criterion = PULoss(self.prior, loss="sigmoid", nnpu=True)
+            criterion = PULoss(self._effective_prior, loss="sigmoid", nnpu=True)
 
         for x, pu_labels, sample_weights, true_labels in dataloader:
             x = x.to(self.device)

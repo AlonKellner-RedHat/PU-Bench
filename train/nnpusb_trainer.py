@@ -13,10 +13,15 @@ class NNPUSBTrainer(BaseTrainer):
     """nnPUSB learning trainer"""
 
     def create_criterion(self):
+        # Use method_prior from config if specified, otherwise use computed prior
+        if hasattr(self, 'method_prior') and self.method_prior is not None:
+            prior = self.method_prior
+        else:
+            prior = self.prior
         gamma = self.params.get("gamma", 1.0)
         beta = self.params.get("beta", 0.0)
         weight = self.params.get("weight", 1.0)
-        return nnPUSBloss(self.prior, weight=weight, nnPU=True, gamma=gamma, beta=beta)
+        return nnPUSBloss(prior, weight=weight, nnPU=True, gamma=gamma, beta=beta)
 
     def train_one_epoch(self, epoch_idx: int):
         self.model.train()

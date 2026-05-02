@@ -5,7 +5,7 @@ c_values: [0.01, 0.1, 0.5]  # 3 values (extreme to moderate label scarcity)
 
 # Cartesian grid dimensions
 target_prevalence_train_values: [0.1, 0.3, 0.5, 0.7, 0.9]  # 5 true priors
-method_prior_values: [0.5, null, 1.0]  # For VPU mean_prior variants (null = "auto")
+method_prior_values: [0.5, null, 0.6666, 0.77, 1.0]  # For VPU mean_prior variants (null = "auto")
 
 # PU setup
 scenarios: [case-control]

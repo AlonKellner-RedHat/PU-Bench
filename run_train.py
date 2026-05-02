@@ -153,7 +153,9 @@ def _build_experiment_name(
     # Include method_prior in name if it's specified (for robustness experiments)
     if method_prior is not None:
         if method_prior == "auto":
-            base_name += "_methodprior_auto"
+            base_name += "_methodpriorauto"
+        elif method_prior == "true":
+            base_name += "_methodpriortrue"
         else:
             base_name += f"_methodprior{method_prior:g}"
 
@@ -320,13 +322,18 @@ def main():
             for target_prev_train in target_prevalence_train_values:
                 for method_prior in method_prior_values:
                     for method in method_names:
-                        # Skip method_prior for methods that don't support it
-                        # Only vpu_mean_prior and vpu_nomixup_mean_prior use method_prior
-                        supports_mean_prior = "mean_prior" in method
-                        if supports_mean_prior != (method_prior is not None):
+                        # Methods that support custom method_prior values (Phase 4 expansion)
+                        METHODS_WITH_PRIOR_SUPPORT = {
+                            'vpu_mean_prior', 'vpu_nomixup_mean_prior',  # Existing VPU variants
+                            'nnpu', 'nnpusb', 'lbe', 'distpu', 'selfpu',  # Phase 4 additions
+                            'p3mixe', 'p3mixc', 'robustpu'
+                        }
+
+                        supports_method_prior = method in METHODS_WITH_PRIOR_SUPPORT
+                        if supports_method_prior != (method_prior is not None):
                             # Skip if method support doesn't match the prior being used
-                            # Non-mean_prior methods: only run with method_prior=None
-                            # Mean_prior methods: only run with method_prior="auto" or 0.5
+                            # Methods without prior support: only run with method_prior=None
+                            # Methods with prior support: only run with method_prior set
                             continue
 
                         # Build experiment config
@@ -380,7 +387,10 @@ def main():
             # Add method_prior to params if specified
             if method_prior is not None:
                 if method_prior == "auto":
-                    params["method_prior"] = None  # Will use computed value
+                    params["method_prior"] = None  # Will use computed value (c × π)
+                elif method_prior == "true":
+                    # Use the true prior π (target_prevalence_train)
+                    params["method_prior"] = target_prev_train
                 else:
                     params["method_prior"] = method_prior
 
@@ -409,13 +419,67 @@ def main():
             trainer.run()
             print(f"[{i}/{len(all_experiments)}] ✔ DONE {method} on {exp_name}")
 
+            # Cleanup to prevent RAM leak
+            import gc
+            if hasattr(trainer, 'train_loader'):
+                del trainer.train_loader
+            if hasattr(trainer, 'validation_loader'):
+                del trainer.validation_loader
+            if hasattr(trainer, 'test_loader'):
+                del trainer.test_loader
+            if hasattr(trainer, 'update_loader'):
+                del trainer.update_loader
+            if hasattr(trainer, 'p_loader'):
+                del trainer.p_loader
+            if hasattr(trainer, 'u_loader'):
+                del trainer.u_loader
+            if hasattr(trainer, 'p_update_loader'):
+                del trainer.p_update_loader
+            if hasattr(trainer, 'model'):
+                del trainer.model
+            if hasattr(trainer, 'model2'):
+                del trainer.model2
+            if hasattr(trainer, 'eta_model'):
+                del trainer.eta_model
+            if hasattr(trainer, 'ema_model'):
+                del trainer.ema_model
+            if hasattr(trainer, 'optimizer'):
+                del trainer.optimizer
+            if hasattr(trainer, 'optimizer_eta'):
+                del trainer.optimizer_eta
+            if hasattr(trainer, 'checkpoint_handler'):
+                del trainer.checkpoint_handler
+            del trainer
+            gc.collect()
+
         except Exception as exc:
             import traceback
+            import gc
 
             print(f"[{i}/{len(all_experiments)}] ✗ FAILED {method} on {exp_name}")
             print(f"Error: {exc}")
             traceback.print_exc()
             print("-" * 80)
+
+            # Cleanup even on failure to prevent RAM leak
+            if 'trainer' in locals():
+                try:
+                    if hasattr(trainer, 'train_loader'):
+                        del trainer.train_loader
+                    if hasattr(trainer, 'validation_loader'):
+                        del trainer.validation_loader
+                    if hasattr(trainer, 'test_loader'):
+                        del trainer.test_loader
+                    if hasattr(trainer, 'model'):
+                        del trainer.model
+                    if hasattr(trainer, 'optimizer'):
+                        del trainer.optimizer
+                    if hasattr(trainer, 'checkpoint_handler'):
+                        del trainer.checkpoint_handler
+                    del trainer
+                except:
+                    pass
+            gc.collect()
 
     if args.resume and skipped_count > 0:
         print(f"\n📊 Skipped {skipped_count} already-completed runs")

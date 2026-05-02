@@ -105,6 +105,12 @@ class P3MIXCTrainer(BaseTrainer):
 
     def _build_p3mix_model(self):
         """Initializes model, EMA model, optimizer, and scheduler for P3MIX."""
+        # Use method_prior from config if specified, otherwise use computed prior
+        if hasattr(self, 'method_prior') and self.method_prior is not None:
+            prior = self.method_prior
+        else:
+            prior = self.prior
+
         # Select Mixup-compatible model
         # The key should be the dataset name from the config, not the model class name.
         model_map = {
@@ -129,7 +135,7 @@ class P3MIXCTrainer(BaseTrainer):
 
         selected_model_cls = getattr(mix_models, mix_model_name)
 
-        self.model = selected_model_cls(prior=self.prior).to(self.device)
+        self.model = selected_model_cls(prior=prior).to(self.device)
 
         # Ensure dynamic models (e.g., MixMLP) are built before creating optimizer
         try:
@@ -188,7 +194,7 @@ class P3MIXCTrainer(BaseTrainer):
                 ):
                     if int(getattr(fc, "out_features", 0)) == 1:
                         with torch.no_grad():
-                            fc.bias.fill_(_logit(self.prior))
+                            fc.bias.fill_(_logit(prior))
         except Exception:
             pass
 
