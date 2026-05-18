@@ -7,7 +7,7 @@ Analyzes performance across:
 - 7 datasets
 - 7 label frequencies (c)
 - 7 true priors (π)
-- 16 method variants (14 actual + 2 adaptive virtual methods)
+- 20 method variants (18 actual + 2 adaptive virtual methods)
 
 Adaptive methods:
 - VPU-nomix-MP(0.353;0.69): Uses 0.353 when π < 0.5, else 0.69
@@ -33,14 +33,18 @@ METHOD_ORDER = [
     "vpu_nomixup_mean_prior_auto",
     "vpu_nomixup_mean_prior_0.353",
     "vpu_nomixup_mean_prior_0.5",
+    "vpu_nomixup_mean_prior_0.6666",
     "vpu_nomixup_mean_prior_0.69",
+    "vpu_nomixup_mean_prior_0.77",
     "vpu_nomixup_mean_prior_1",
     "vpu_nomixup_mean_prior_0.353;0.69",  # Adaptive: 0.353 if π<0.5, else 0.69
     # VPU with mean-prior
     "vpu_mean_prior_auto",
     "vpu_mean_prior_0.353",
     "vpu_mean_prior_0.5",
+    "vpu_mean_prior_0.6666",
     "vpu_mean_prior_0.69",
+    "vpu_mean_prior_0.77",
     "vpu_mean_prior_1",
     "vpu_mean_prior_0.353;0.69",  # Adaptive: 0.353 if π<0.5, else 0.69
     # Oracles
@@ -53,13 +57,17 @@ METHOD_LABELS = {
     "vpu_mean_prior_auto": "VPU-MP(auto)",
     "vpu_mean_prior_0.353": "VPU-MP(0.353)",
     "vpu_mean_prior_0.5": "VPU-MP(0.5)",
+    "vpu_mean_prior_0.6666": "VPU-MP(0.6666)",
     "vpu_mean_prior_0.69": "VPU-MP(0.69)",
+    "vpu_mean_prior_0.77": "VPU-MP(0.77)",
     "vpu_mean_prior_1": "VPU-MP(1.0)",
     "vpu_mean_prior_0.353;0.69": "VPU-MP(0.353;0.69)",
     "vpu_nomixup_mean_prior_auto": "VPU-nomix-MP(auto)",
     "vpu_nomixup_mean_prior_0.353": "VPU-nomix-MP(0.353)",
     "vpu_nomixup_mean_prior_0.5": "VPU-nomix-MP(0.5)",
+    "vpu_nomixup_mean_prior_0.6666": "VPU-nomix-MP(0.6666)",
     "vpu_nomixup_mean_prior_0.69": "VPU-nomix-MP(0.69)",
+    "vpu_nomixup_mean_prior_0.77": "VPU-nomix-MP(0.77)",
     "vpu_nomixup_mean_prior_1": "VPU-nomix-MP(1.0)",
     "vpu_nomixup_mean_prior_0.353;0.69": "VPU-nomix-MP(0.353;0.69)",
     "oracle_bce": "Oracle-PN",
@@ -111,8 +119,12 @@ def load_phase3_results():
                         method_id = f"{method_key}_0.353"
                     elif "methodprior0.5" in json_file.name:
                         method_id = f"{method_key}_0.5"
+                    elif "methodprior0.6666" in json_file.name:
+                        method_id = f"{method_key}_0.6666"
                     elif "methodprior0.69" in json_file.name:
                         method_id = f"{method_key}_0.69"
+                    elif "methodprior0.77" in json_file.name:
+                        method_id = f"{method_key}_0.77"
                     elif "methodprior1" in json_file.name:
                         method_id = f"{method_key}_1"
                     else:

@@ -20,9 +20,12 @@ Optional:
 from __future__ import annotations
 
 import sys
+import json
 import argparse
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+from datetime import datetime
 
 # New method loader (relative import safe when running as script)
 from config.method_loader import (
@@ -156,6 +159,8 @@ def _build_experiment_name(
             base_name += "_methodpriorauto"
         elif method_prior == "true":
             base_name += "_methodpriortrue"
+        elif method_prior == "ep_linear":
+            base_name += "_methodprioreplinear"
         else:
             base_name += f"_methodprior{method_prior:g}"
 
@@ -200,6 +205,114 @@ def _method_already_completed(exp_name: str, method: str, seed: int, output_dir:
 
     except Exception:
         return False
+
+
+def save_failed_result(method, experiment_name, output_dir, seed, error_message):
+    """Save a failed result with NaN metrics to mark the experiment as completed but failed."""
+
+    # Create NaN metrics for all expected fields
+    nan_metrics = {
+        "train_error": float('nan'),
+        "train_risk": float('nan'),
+        "train_accuracy": float('nan'),
+        "train_precision": float('nan'),
+        "train_recall": float('nan'),
+        "train_f1": float('nan'),
+        "train_auc": float('nan'),
+        "train_ap": float('nan'),
+        "train_max_f1": float('nan'),
+        "train_oracle_ce": float('nan'),
+        "train_anice": float('nan'),
+        "train_snice": float('nan'),
+        "train_ece": float('nan'),
+        "train_mce": float('nan'),
+        "train_brier": float('nan'),
+        "test_error": float('nan'),
+        "test_risk": float('nan'),
+        "test_accuracy": float('nan'),
+        "test_precision": float('nan'),
+        "test_recall": float('nan'),
+        "test_f1": float('nan'),
+        "test_auc": float('nan'),
+        "test_ap": float('nan'),
+        "test_max_f1": float('nan'),
+        "test_oracle_ce": float('nan'),
+        "test_anice": float('nan'),
+        "test_snice": float('nan'),
+        "test_ece": float('nan'),
+        "test_mce": float('nan'),
+        "test_brier": float('nan'),
+        "val_error": float('nan'),
+        "val_risk": float('nan'),
+        "val_accuracy": float('nan'),
+        "val_precision": float('nan'),
+        "val_recall": float('nan'),
+        "val_f1": float('nan'),
+        "val_auc": float('nan'),
+        "val_ap": float('nan'),
+        "val_max_f1": float('nan'),
+        "val_oracle_ce": float('nan'),
+        "val_anice": float('nan'),
+        "val_snice": float('nan'),
+        "val_ece": float('nan'),
+        "val_mce": float('nan'),
+        "val_brier": float('nan'),
+    }
+
+    # Create result structure
+    result = {
+        "method": method,
+        "experiment": experiment_name,
+        "status": "failed",
+        "error": error_message,
+        "device": "N/A",
+        "gpu_count": 0,
+        "timing": {
+            "start": datetime.utcnow().isoformat() + "Z",
+            "end": datetime.utcnow().isoformat() + "Z",
+            "duration_seconds": 0.0
+        },
+        "max_gpu_memory_bytes": 0,
+        "dataset": {},
+        "best": {
+            "epoch": 0,
+            "metrics": nan_metrics
+        },
+        "monitor": "val_auc",
+        "global_epochs": 0,
+        "hyperparameters": {}
+    }
+
+    # Save to result file (same structure as base_trainer.py)
+    root_dir = os.path.join(output_dir, f"seed_{seed}")
+    os.makedirs(root_dir, exist_ok=True)
+    exp_path = os.path.join(root_dir, f"{experiment_name}.json")
+
+    merged = {
+        "experiment": experiment_name,
+        "updated_at": None,
+        "runs": {},
+    }
+
+    # Load existing file if it exists
+    if os.path.exists(exp_path):
+        try:
+            with open(exp_path, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    merged.update({k: v for k, v in loaded.items() if k != "runs"})
+                    if isinstance(loaded.get("runs"), dict):
+                        merged["runs"].update(loaded["runs"])
+        except Exception:
+            pass
+
+    # Add this method's result
+    merged["runs"][method] = result
+    merged["updated_at"] = datetime.utcnow().isoformat() + "Z"
+
+    # Save
+    with open(exp_path, "w", encoding="utf-8") as f:
+        json.dump(merged, f, ensure_ascii=False, indent=2)
 
 
 def main():
@@ -257,102 +370,129 @@ def main():
         default=None,
         help="Worker ID (0 to num_workers-1) for distributed execution",
     )
+    parser.add_argument(
+        "--process-group",
+        type=str,
+        default=None,
+        help="Process experiments from a group JSON file (for subprocess mode)",
+    )
     args = parser.parse_args()
 
-    # Determine methods
-    methods_dir = Path(args.methods_dir)
-    if args.methods is None:
-        method_names = list_methods_new(methods_dir)
-    else:
-        # Support comma-separated or whitespace-separated lists
-        # argparse with nargs+ already splits on whitespace; we additionally split items on commas
-        raw_methods = []
-        for m in args.methods:
-            raw_methods.extend([p for p in m.split(",") if p])
-        method_names = [m.strip().lower() for m in raw_methods if m.strip()]
-    # Filter by available trainers
-    method_names = [m for m in method_names if m in TRAINER_IMPORT_PATHS]
-    if not method_names:
-        print("No valid methods found to run.")
-        sys.exit(1)
-
-    # Load one or more dataset configs and expand their grids
-    dataset_cfg_paths: List[str] = list(args.dataset_config)
-    datasets_expanded: List[Tuple[str, List[Dict[str, Any]]]] = []
-    dataset_names: List[str] = []
-    for cfg_path in dataset_cfg_paths:
-        dataset_cfg = load_dataset_config(cfg_path)
-        dataset_class, data_runs = _expand_grid(dataset_cfg)
-        datasets_expanded.append((dataset_class, data_runs))
-        dataset_names.append(dataset_class)
-
-    # Prepare trainers (lazy import once)
-    trainer_classes: Dict[str, Any] = {}
-    for m in method_names:
-        trainer_classes[m] = _lazy_import(TRAINER_IMPORT_PATHS[m])
-
-    total = len(method_names) * sum(len(dr) for (_, dr) in datasets_expanded)
-    unique_dataset_names = list(dict.fromkeys(dataset_names))
-    print("=" * 80)
-    print(
-        f"Planned runs: {total} | datasets={', '.join(unique_dataset_names)} | methods={', '.join(method_names)}"
-    )
-    print("=" * 80)
-
-    if args.dry_run:
-        for dataset_class, data_runs in datasets_expanded:
-            for i, d in enumerate(data_runs, 1):
-                print(
-                    f"dataset={dataset_class} | [{i}/{len(data_runs)}] scenario={d['scenario']} strategy={d['selection_strategy']} c={d['labeled_ratio']} seed={d['random_seed']}"
-                )
-        return
-
-    # Execute runs with randomized queue
+    # Handle subprocess mode (processing a group file)
     import copy
-    import random
+    if args.process_group:
+        # Load experiments from group file
+        with open(args.process_group, 'r') as f:
+            all_experiments = json.load(f)
 
-    # Step 1: Flatten experiments into a queue
-    all_experiments = []
-    for dataset_class, data_runs in datasets_expanded:
-        for data_cfg in data_runs:
-            # Expand target_prevalence_train_values and method_prior_values if specified
-            target_prevalence_train_values = data_cfg.get("target_prevalence_train_values", [None])
-            method_prior_values = data_cfg.get("method_prior_values", [None])
+        # Extract methods from experiments
+        method_names = list(set(exp["method"] for exp in all_experiments))
 
-            for target_prev_train in target_prevalence_train_values:
-                for method_prior in method_prior_values:
-                    for method in method_names:
-                        # Methods that support custom method_prior values (Phase 4 expansion)
-                        METHODS_WITH_PRIOR_SUPPORT = {
-                            'vpu_mean_prior', 'vpu_nomixup_mean_prior',  # Existing VPU variants
-                            'nnpu', 'nnpusb', 'lbe', 'distpu', 'selfpu',  # Phase 4 additions
-                            'p3mixe', 'p3mixc', 'robustpu'
-                        }
+        # Prepare trainers
+        methods_dir = Path(args.methods_dir)
+        trainer_classes: Dict[str, Any] = {}
+        for m in method_names:
+            if m in TRAINER_IMPORT_PATHS:
+                trainer_classes[m] = _lazy_import(TRAINER_IMPORT_PATHS[m])
 
-                        supports_method_prior = method in METHODS_WITH_PRIOR_SUPPORT
-                        if supports_method_prior != (method_prior is not None):
-                            # Skip if method support doesn't match the prior being used
-                            # Methods without prior support: only run with method_prior=None
-                            # Methods with prior support: only run with method_prior set
-                            continue
+        print(f"Processing group with {len(all_experiments)} experiments")
 
-                        # Build experiment config
-                        exp_config = {
-                            "dataset_class": dataset_class,
-                            "data_cfg": copy.deepcopy(data_cfg),
-                            "target_prev_train": target_prev_train,
-                            "method_prior": method_prior,
-                            "method": method,
-                            "seed": data_cfg.get("random_seed"),
-                        }
-                        all_experiments.append(exp_config)
+        # Skip to execution (no randomization needed for groups)
+    else:
+        # Normal mode: expand dataset configs
+        # Determine methods
+        methods_dir = Path(args.methods_dir)
+        if args.methods is None:
+            method_names = list_methods_new(methods_dir)
+        else:
+            # Support comma-separated or whitespace-separated lists
+            # argparse with nargs+ already splits on whitespace; we additionally split items on commas
+            raw_methods = []
+            for m in args.methods:
+                raw_methods.extend([p for p in m.split(",") if p])
+            method_names = [m.strip().lower() for m in raw_methods if m.strip()]
+        # Filter by available trainers
+        method_names = [m for m in method_names if m in TRAINER_IMPORT_PATHS]
+        if not method_names:
+            print("No valid methods found to run.")
+            sys.exit(1)
 
-    print(f"\nGenerated {len(all_experiments)} total experiments")
+        # Load one or more dataset configs and expand their grids
+        dataset_cfg_paths: List[str] = list(args.dataset_config)
+        datasets_expanded: List[Tuple[str, List[Dict[str, Any]]]] = []
+        dataset_names: List[str] = []
+        for cfg_path in dataset_cfg_paths:
+            dataset_cfg = load_dataset_config(cfg_path)
+            dataset_class, data_runs = _expand_grid(dataset_cfg)
+            datasets_expanded.append((dataset_class, data_runs))
+            dataset_names.append(dataset_class)
 
-    # Step 2: Randomize order for load balancing
-    random.seed(args.shuffle_seed)
-    random.shuffle(all_experiments)
-    print(f"Shuffled experiments with seed={args.shuffle_seed}")
+        # Prepare trainers (lazy import once)
+        trainer_classes: Dict[str, Any] = {}
+        for m in method_names:
+            trainer_classes[m] = _lazy_import(TRAINER_IMPORT_PATHS[m])
+
+        total = len(method_names) * sum(len(dr) for (_, dr) in datasets_expanded)
+        unique_dataset_names = list(dict.fromkeys(dataset_names))
+        print("=" * 80)
+        print(
+            f"Planned runs: {total} | datasets={', '.join(unique_dataset_names)} | methods={', '.join(method_names)}"
+        )
+        print("=" * 80)
+
+        if args.dry_run:
+            for dataset_class, data_runs in datasets_expanded:
+                for i, d in enumerate(data_runs, 1):
+                    print(
+                        f"dataset={dataset_class} | [{i}/{len(data_runs)}] scenario={d['scenario']} strategy={d['selection_strategy']} c={d['labeled_ratio']} seed={d['random_seed']}"
+                    )
+            return
+
+        # Execute runs with randomized queue
+        import random
+
+        # Step 1: Flatten experiments into a queue
+        all_experiments = []
+        for dataset_class, data_runs in datasets_expanded:
+            for data_cfg in data_runs:
+                # Expand target_prevalence_train_values and method_prior_values if specified
+                target_prevalence_train_values = data_cfg.get("target_prevalence_train_values", [None])
+                method_prior_values = data_cfg.get("method_prior_values", [None])
+
+                for target_prev_train in target_prevalence_train_values:
+                    for method_prior in method_prior_values:
+                        for method in method_names:
+                            # Methods that support custom method_prior values (Phase 4 expansion)
+                            METHODS_WITH_PRIOR_SUPPORT = {
+                                'vpu_mean_prior', 'vpu_nomixup_mean_prior',  # Existing VPU variants
+                                'nnpu', 'nnpusb', 'lbe', 'distpu', 'selfpu',  # Phase 4 additions
+                                'p3mixe', 'p3mixc', 'robustpu'
+                            }
+
+                            supports_method_prior = method in METHODS_WITH_PRIOR_SUPPORT
+                            if supports_method_prior != (method_prior is not None):
+                                # Skip if method support doesn't match the prior being used
+                                # Methods without prior support: only run with method_prior=None
+                                # Methods with prior support: only run with method_prior set
+                                continue
+
+                            # Build experiment config
+                            exp_config = {
+                                "dataset_class": dataset_class,
+                                "data_cfg": copy.deepcopy(data_cfg),
+                                "target_prev_train": target_prev_train,
+                                "method_prior": method_prior,
+                                "method": method,
+                                "seed": data_cfg.get("random_seed"),
+                            }
+                            all_experiments.append(exp_config)
+
+        print(f"\nGenerated {len(all_experiments)} total experiments")
+
+        # Step 2: Randomize order for load balancing
+        random.seed(args.shuffle_seed)
+        random.shuffle(all_experiments)
+        print(f"Shuffled experiments with seed={args.shuffle_seed}")
 
     # Step 3: Filter by worker if distributed execution
     if args.worker_id is not None:
@@ -391,6 +531,12 @@ def main():
                 elif method_prior == "true":
                     # Use the true prior π (target_prevalence_train)
                     params["method_prior"] = target_prev_train
+                elif method_prior == "ep_linear":
+                    # (effective_prior + 1) / 3 where effective_prior = c × π
+                    c_val = data_cfg.get("labeled_ratio", 0.5)
+                    pi_val = target_prev_train if target_prev_train is not None else 0.5
+                    ep = c_val * pi_val
+                    params["method_prior"] = (ep + 1.0) / 3.0
                 else:
                     params["method_prior"] = method_prior
 
@@ -413,11 +559,39 @@ def main():
 
             # Run experiment
             trainer_cls = trainer_classes[method]
-            trainer = trainer_cls(method=method, experiment=exp_name, params=params)
 
-            print(f"[{i}/{len(all_experiments)}] ▶ RUN {method} on {exp_name}")
-            trainer.run()
-            print(f"[{i}/{len(all_experiments)}] ✔ DONE {method} on {exp_name}")
+            try:
+                trainer = trainer_cls(method=method, experiment=exp_name, params=params)
+                print(f"[{i}/{len(all_experiments)}] ▶ RUN {method} on {exp_name}")
+                trainer.run()
+                print(f"[{i}/{len(all_experiments)}] ✔ DONE {method} on {exp_name}")
+
+            except (IndexError, ValueError) as e:
+                # Handle edge cases where methods cannot train due to insufficient data
+                error_msg = str(e)
+
+                # Specific error patterns for known edge cases
+                if "too many indices for tensor of dimension 0" in error_msg:
+                    reason = "Insufficient batch size (tensor dimension error)"
+                elif "num_samples should be a positive integer" in error_msg:
+                    reason = "Insufficient labeled samples for method"
+                else:
+                    reason = error_msg
+
+                print(f"[{i}/{len(all_experiments)}] ✗ FAILED {method} on {exp_name}")
+                print(f"Error: {reason}")
+
+                # Save failed result with NaN metrics
+                save_failed_result(
+                    method=method,
+                    experiment_name=exp_name,
+                    output_dir=args.output_dir,
+                    seed=seed,
+                    error_message=reason
+                )
+
+                # Continue to next experiment
+                continue
 
             # Cleanup to prevent RAM leak
             import gc

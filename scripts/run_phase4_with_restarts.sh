@@ -1,21 +1,22 @@
 #!/bin/bash
-# Phase 4 with automatic 30-minute worker restarts to prevent memory leaks
+# Phase 4 with automatic 2-hour worker restarts to prevent memory leaks
 
 OUTPUT_DIR="results_phase4"
 SHUFFLE_SEED=77777
 NUM_WORKERS=12
-RESTART_INTERVAL=1800  # 30 minutes in seconds
+RESTART_INTERVAL=7200  # 2 hours in seconds
 
 echo "============================================"
 echo "Phase 4: Prior Robustness Grid Analysis"
-echo "with 30-minute automatic worker restarts"
+echo "with 2-hour automatic worker restarts"
 echo "============================================"
 echo ""
 echo "Configuration:"
 echo "  Datasets: 7 (MNIST, FashionMNIST, IMDB, 20News, Mushrooms, Spambase, Connect4)"
 echo "  Methods: 10 (8 baseline prior-based + 2 VPU variants)"
 echo "  Workers: ${NUM_WORKERS}"
-echo "  Restart interval: 30 minutes"
+echo "  Restart interval: 2 hours"
+echo "  Optimization: Grouped by dataloader config for cache efficiency"
 echo "  Total: ~19,110 experiments"
 echo ""
 
@@ -76,7 +77,8 @@ restart_count=0
 start_time=$(date +%s)
 
 echo ""
-echo "Starting Phase 4 with automatic restarts every 30 minutes..."
+echo "Starting Phase 4 with automatic restarts every 2 hours..."
+echo "Experiments grouped by dataloader configuration for optimal caching."
 echo "Press Ctrl+C to stop gracefully"
 echo ""
 
@@ -90,13 +92,13 @@ while true; do
     start_workers $restart_count
     report_progress
 
-    # Wait for restart interval (30 minutes)
-    echo "[$(date +%H:%M:%S)] Next restart in 30 minutes..."
+    # Wait for restart interval (2 hours)
+    echo "[$(date +%H:%M:%S)] Next restart in 2 hours..."
 
     # Sleep in small increments to allow responsive Ctrl+C
-    for i in $(seq 1 60); do
+    for i in $(seq 1 240); do
         sleep 30
-        if [ $((i % 2)) -eq 0 ]; then
+        if [ $((i % 4)) -eq 0 ]; then
             report_progress
         fi
     done
