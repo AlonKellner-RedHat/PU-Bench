@@ -641,6 +641,94 @@ def run_analysis(records, output_file, plot_subdir, title_suffix, num_seeds, see
     lines.append("---")
     lines.append("")
 
+    # Per-dataset best-fit lines
+    datasets = sorted(set(r['dataset'] for r in records))
+
+    # Group records by dataset
+    by_dataset = defaultdict(list)
+    for r in records:
+        by_dataset[r['dataset']].append(r)
+
+    lines.append("## Per-Dataset Best-Fit Lines (Beta-Fit)")
+    lines.append("")
+    lines.append("*How much does the optimal method_prior vary across datasets?*")
+    lines.append("*Each row shows the best-fit line (slope·ep + intercept) for one dataset.*")
+    lines.append("")
+
+    # Header
+    fit_metrics = [label for _, label, _ in plot_metrics]
+    lines.append("| Dataset | " + " | ".join(fit_metrics) + " |")
+    lines.append("|---------|" + "|".join(["---"] * len(plot_metrics)) + "|")
+
+    # Compute per-dataset fits
+    all_slopes = defaultdict(list)
+    all_intercepts = defaultdict(list)
+
+    for ds in datasets:
+        ds_records = by_dataset[ds]
+
+        # Group by (method_prior, effective_prior) for this dataset
+        ds_grouped = defaultdict(lambda: defaultdict(list))
+        for r in ds_records:
+            ds_grouped[r['method_prior']][r['effective_prior']].append(r)
+
+        ds_ep_values = sorted(set(r['effective_prior'] for r in ds_records))
+
+        row = f"| {ds} |"
+
+        for metric_key, metric_label, higher_is_better in plot_metrics:
+            opt_eps = []
+            opt_priors = []
+            for ep in ds_ep_values:
+                x_vals = []
+                y_vals = []
+                for mp in constant_priors_for_plot:
+                    vals = [r[metric_key] for r in ds_grouped[mp].get(ep, [])
+                            if r.get(metric_key) is not None and not np.isnan(r[metric_key])]
+                    if vals:
+                        x_vals.append(mp)
+                        y_vals.append(np.mean(vals))
+
+                if len(x_vals) >= 4:
+                    peak = find_beta_peak(x_vals, y_vals, higher_is_better)
+                    opt_eps.append(ep)
+                    opt_priors.append(peak)
+
+            if len(opt_eps) >= 2:
+                coeffs = np.polyfit(opt_eps, opt_priors, 1)
+                row += f" {coeffs[0]:.2f}·ep + {coeffs[1]:.2f} |"
+                all_slopes[metric_key].append(coeffs[0])
+                all_intercepts[metric_key].append(coeffs[1])
+            else:
+                row += " — |"
+
+        lines.append(row)
+
+    # Add mean ± std row
+    row_mean = "| **Mean ± Std** |"
+    for metric_key, _, _ in plot_metrics:
+        slopes = all_slopes[metric_key]
+        intercepts = all_intercepts[metric_key]
+        if slopes:
+            row_mean += f" {np.mean(slopes):.2f}±{np.std(slopes):.2f}·ep + {np.mean(intercepts):.2f}±{np.std(intercepts):.2f} |"
+        else:
+            row_mean += " — |"
+    lines.append(row_mean)
+
+    # Add combined (all datasets) row for reference
+    row_all = "| **Combined** |"
+    for metric_key, _, _ in plot_metrics:
+        slopes = all_slopes[metric_key]
+        intercepts = all_intercepts[metric_key]
+        # Recompute from the full-dataset beta-fit (already done above, extract from plot)
+        # Just use the mean of per-dataset as proxy — the actual combined was plotted above
+        row_all += f" (see plots above) |"
+    lines.append(row_all)
+
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+
     # Best constant method_prior per bin × metric
     constant_priors = [mp for mp in method_priors if isinstance(mp, float)]
 

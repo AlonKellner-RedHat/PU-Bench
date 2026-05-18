@@ -212,6 +212,25 @@ with equal weight. This answers: *if the effective prior were uniformly distribu
 
 ---
 
+## Per-Dataset Best-Fit Lines (Beta-Fit)
+
+*How much does the optimal method_prior vary across datasets?*
+*Each row shows the best-fit line (slope·ep + intercept) for one dataset.*
+
+| Dataset | AUC | AP | Max F1 | Accuracy | F1 | Precision | Recall | ECE | Brier | Oracle CE | A-NICE | S-NICE |
+|---------|---|---|---|---|---|---|---|---|---|---|---|---|
+| 20News | -0.22·ep + 0.62 | -0.08·ep + 0.53 | -0.04·ep + 0.55 | 0.22·ep + 0.53 | 0.03·ep + 0.79 | -0.21·ep + 0.29 | 0.33·ep + 0.69 | 0.08·ep + 0.53 | 0.11·ep + 0.46 | -0.00·ep + 0.38 | 0.30·ep + 0.56 | 0.09·ep + 0.70 |
+| Connect4 | 0.18·ep + 0.50 | 0.42·ep + 0.35 | -0.33·ep + 0.76 | 0.18·ep + 0.73 | 0.10·ep + 0.82 | -0.48·ep + 0.65 | -0.14·ep + 0.82 | 0.07·ep + 0.76 | 0.03·ep + 0.76 | -0.03·ep + 0.65 | -0.19·ep + 0.87 | -0.17·ep + 0.87 |
+| FashionMNIST | 0.10·ep + 0.73 | 0.15·ep + 0.73 | 0.05·ep + 0.75 | 0.02·ep + 0.81 | 0.05·ep + 0.83 | -0.66·ep + 0.58 | 0.04·ep + 0.86 | -0.58·ep + 0.73 | 0.03·ep + 0.80 | -0.07·ep + 0.79 | -0.20·ep + 0.86 | -0.19·ep + 0.86 |
+| IMDB | -0.07·ep + 0.56 | -0.03·ep + 0.53 | -0.03·ep + 0.55 | 0.05·ep + 0.56 | -0.04·ep + 0.85 | 0.16·ep + 0.09 | 0.50·ep + 0.60 | -0.14·ep + 0.38 | -0.08·ep + 0.37 | -0.11·ep + 0.32 | -0.00·ep + 0.63 | 0.01·ep + 0.65 |
+| MNIST | 0.00·ep + 0.77 | 0.00·ep + 0.78 | 0.02·ep + 0.78 | 0.01·ep + 0.82 | 0.07·ep + 0.85 | 0.04·ep + 0.52 | -0.18·ep + 0.83 | -0.64·ep + 0.83 | -0.04·ep + 0.79 | -0.04·ep + 0.78 | -0.37·ep + 0.92 | -0.36·ep + 0.90 |
+| Mushrooms | -0.27·ep + 0.77 | -0.20·ep + 0.77 | -0.05·ep + 0.65 | -0.11·ep + 0.77 | -0.13·ep + 0.88 | -0.20·ep + 0.45 | 0.21·ep + 0.75 | -0.08·ep + 0.62 | -0.03·ep + 0.67 | -0.16·ep + 0.64 | 0.09·ep + 0.58 | -0.20·ep + 0.77 |
+| Spambase | 0.19·ep + 0.46 | 0.12·ep + 0.56 | 0.06·ep + 0.54 | -0.03·ep + 0.33 | -0.10·ep + 0.73 | -0.20·ep + 0.34 | 0.83·ep + 0.37 | -0.23·ep + 0.28 | -0.09·ep + 0.30 | -0.12·ep + 0.35 | -0.19·ep + 0.48 | -0.17·ep + 0.45 |
+| **Mean ± Std** | -0.01±0.17·ep + 0.63±0.12 | 0.06±0.18·ep + 0.61±0.15 | -0.05±0.12·ep + 0.65±0.10 | 0.05±0.11·ep + 0.65±0.17 | -0.00±0.08·ep + 0.82±0.05 | -0.22±0.26·ep + 0.42±0.18 | 0.23±0.34·ep + 0.70±0.16 | -0.22±0.27·ep + 0.59±0.19 | -0.01±0.07·ep + 0.59±0.20 | -0.07±0.05·ep + 0.56±0.19 | -0.08±0.21·ep + 0.70±0.17 | -0.14±0.14·ep + 0.74±0.15 |
+| **Combined** | (see plots above) | (see plots above) | (see plots above) | (see plots above) | (see plots above) | (see plots above) | (see plots above) | (see plots above) | (see plots above) | (see plots above) | (see plots above) | (see plots above) |
+
+---
+
 ## Best Constant method_prior per Bin × Metric
 
 *Rows = effective-prior bins, columns = metrics. Each cell shows the best constant*
